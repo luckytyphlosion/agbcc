@@ -30,10 +30,10 @@ gMPlayTrack_SE3:
 
 	thumb_func_start umul3232H32
 umul3232H32:
-	adr r2, __umul3232H32
+	adr r2, .umul3232H32arm
 	bx r2
 	.arm
-__umul3232H32:
+.umul3232H32arm:
 	umull r2, r3, r0, r1
 	add r0, r3, 0
 	bx lr
@@ -46,9 +46,9 @@ SoundMain:
 	ldr r2, lt_ID_NUMBER
 	ldr r3, [r0, o_SoundInfo_ident]
 	cmp r2, r3
-	beq SoundMain_1
+	beq .identMatches
 	bx lr @ Exit the function if ident doesn't match ID_NUMBER.
-SoundMain_1:
+.identMatches:
 	adds r3, 1
 	str r3, [r0, o_SoundInfo_ident]
 	push {r4-r7,lr}
@@ -60,23 +60,23 @@ SoundMain_1:
 	sub sp, 0x18
 	ldrb r1, [r0, o_SoundInfo_maxLines]
 	cmp r1, 0 @ if maxLines is 0, there is no maximum
-	beq SoundMain_3
+	beq .SoundMain_3
 	ldr r2, lt_REG_VCOUNT
 	ldrb r2, [r2]
 	cmp r2, VCOUNT_VBLANK
-	bhs SoundMain_2
+	bhs .SoundMain_2
 	adds r2, TOTAL_SCANLINES
-SoundMain_2:
+.SoundMain_2:
 	adds r1, r2
-SoundMain_3:
+.SoundMain_3:
 	str r1, [sp, 0x14]
 	ldr r3, [r0, o_SoundInfo_func]
 	cmp r3, 0
-	beq SoundMain_4
+	beq .SoundMain_4
 	ldr r0, [r0, o_SoundInfo_intp]
 	bl _081DD25E
 	ldr r0, [sp, 0x18]
-SoundMain_4:
+.SoundMain_4:
 	ldr r3, [r0, o_SoundInfo_CgbSound]
 	bl _081DD25E
 	ldr r0, [sp, 0x18]
@@ -86,16 +86,16 @@ SoundMain_4:
 	adds r5, r0
 	ldrb r4, [r0, o_SoundInfo_pcmDmaCounter]
 	subs r7, r4, 1
-	bls SoundMain_5
+	bls .SoundMain_5
 	ldrb r1, [r0, o_SoundInfo_pcmDmaPeriod]
 	subs r1, r7
 	mov r2, r8
 	muls r2, r1
 	adds r5, r2
-SoundMain_5:
+.SoundMain_5:
 	str r5, [sp, 0x8]
 	ldr r6, lt_PCM_DMA_BUF_SIZE
-	ldr r3, lt_SoundMainRAM_Buffer
+	ldr r3, lt_SoundMainRAM_Buffer // branch to iwram buffer where SoundMainRAM is loaded
 	bx r3
 
 	.align 2, 0
@@ -111,16 +111,16 @@ lt_PCM_DMA_BUF_SIZE:      .word PCM_DMA_BUF_SIZE
 SoundMainRAM:
 	ldrb r3, [r0, o_SoundInfo_reverb]
 	cmp r3, 0
-	beq SoundMainRAM_NoReverb
-	adr r1, SoundMainRAM_Reverb
+	beq .noReverb
+	adr r1, .applyReverb
 	bx r1
 	.arm
-SoundMainRAM_Reverb:
+.applyReverb:
 	cmp r4, 0x2
 	addeq r7, r0, o_SoundInfo_pcmBuffer
 	addne r7, r5, r8
 	mov r4, r8
-_081DCEC4:
+.applyReverbLoop:
 	ldrsb r0, [r5, r6]
 	ldrsb r1, [r5]
 	add r0, r0, r1
@@ -135,26 +135,26 @@ _081DCEC4:
 	strb r0, [r5, r6]
 	strb r0, [r5], 0x1
 	subs r4, r4, 0x1
-	bgt _081DCEC4
-	adr r0, _081DCF36 + 1 @ plus 1 because THUMB
+	bgt .applyReverbLoop
+	adr r0, .afterApplyReverb + 1 @ plus 1 because THUMB
 	bx r0
 	.thumb
-SoundMainRAM_NoReverb:
+.noReverb:
 	movs r0, 0
 	mov r1, r8
 	adds r6, r5
 	lsrs r1, 3
-	bcc SoundMainRAM_NoReverb_Ok
+	bcc .noReverbOk
 	stm r5!, {r0}
 	stm r6!, {r0}
-SoundMainRAM_NoReverb_Ok:
+.noReverbOk:
 	lsrs r1, 1
-	bcc SoundMainRAM_NoReverb_Loop
+	bcc .noReverbLoop
 	stm r5!, {r0}
 	stm r6!, {r0}
 	stm r5!, {r0}
 	stm r6!, {r0}
-SoundMainRAM_NoReverb_Loop:
+.noReverbLoop:
 	stm r5!, {r0}
 	stm r6!, {r0}
 	stm r5!, {r0}
@@ -164,8 +164,8 @@ SoundMainRAM_NoReverb_Loop:
 	stm r5!, {r0}
 	stm r6!, {r0}
 	subs r1, 1
-	bgt SoundMainRAM_NoReverb_Loop
-_081DCF36:
+	bgt .noReverbLoop
+.afterApplyReverb:
 	ldr r4, [sp, 0x18]
 	ldr r0, [r4, o_SoundInfo_divFreq]
 	mov r12, r0
@@ -773,22 +773,22 @@ ply_fine:
 	adds r5, r1, 0
 	ldr r4, [r5, o_MusicPlayerTrack_chan]
 	cmp r4, 0
-	beq ply_fine_done
-ply_fine_loop:
+	beq .done
+.loop:
 	ldrb r1, [r4]
 	movs r0, 0xC7
 	tst r0, r1
-	beq ply_fine_ok
+	beq .ok
 	movs r0, 0x40
 	orrs r1, r0
 	strb r1, [r4]
-ply_fine_ok:
+.ok:
 	adds r0, r4, 0
 	bl RealClearChain
 	ldr r4, [r4, 0x34]
 	cmp r4, 0
-	bne ply_fine_loop
-ply_fine_done:
+	bne .loop
+.done:
 	movs r0, 0
 	strb r0, [r5]
 	pop {r4,r5}
@@ -801,13 +801,13 @@ MPlayJumpTableCopy:
 	mov r12, lr
 	movs r1, 0x24
 	ldr r2, lt_MPlayJumpTableTemplate
-MPlayJumpTableCopy_Loop:
+.loop:
 	ldr r3, [r2]
 	bl chk_adr_r2
 	stm r0!, {r3}
 	adds r2, 0x4
 	subs r1, 0x1
-	bgt MPlayJumpTableCopy_Loop
+	bgt .loop
 	bx r12
 	thumb_func_end MPlayJumpTableCopy
 
@@ -823,15 +823,15 @@ ldrb_r3_r2:
 chk_adr_r2:
 	push {r0}
 	lsrs r0, r2, 25
-	bne chk_adr_r2_done @ if adr >= 0x2000000 (i.e. not in BIOS ROM), accept it
+	bne .acceptAddress @ if adr >= 0x2000000 (i.e. not in BIOS ROM), accept it
 	ldr r0, lt_MPlayJumpTableTemplate
 	cmp r2, r0
-	blo chk_adr_r2_reject @ if adr < gMPlayJumpTableTemplate, reject it
+	blo .rejectAddress @ if adr < gMPlayJumpTableTemplate, reject it
 	lsrs r0, r2, 14
-	beq chk_adr_r2_done @ if adr < 0x40000 (i.e. in BIOS ROM), accept it
-chk_adr_r2_reject:
+	beq .acceptAddress @ if adr < 0x40000 (i.e. in BIOS ROM), accept it
+.rejectAddress:
 	movs r3, 0
-chk_adr_r2_done:
+.acceptAddress:
 	pop {r0}
 	bx lr
 
@@ -872,7 +872,7 @@ ply_goto_1:
 ply_patt:
 	ldrb r2, [r1, o_MusicPlayerTrack_patternLevel]
 	cmp r2, 3
-	bhs ply_patt_done
+	bhs .done
 	lsls r2, 2
 	adds r3, r1, r2
 	ldr r2, [r1, o_MusicPlayerTrack_cmdPtr]
@@ -882,7 +882,7 @@ ply_patt:
 	adds r2, 1
 	strb r2, [r1, o_MusicPlayerTrack_patternLevel]
 	b ply_goto
-ply_patt_done:
+.done:
 	b ply_fine
 	thumb_func_end ply_patt
 
@@ -890,14 +890,14 @@ ply_patt_done:
 ply_pend:
 	ldrb r2, [r1, o_MusicPlayerTrack_patternLevel]
 	cmp r2, 0
-	beq ply_pend_done
+	beq .done
 	subs r2, 1
 	strb r2, [r1, o_MusicPlayerTrack_patternLevel]
 	lsls r2, 2
 	adds r3, r1, r2
 	ldr r2, [r3, o_MusicPlayerTrack_patternStack]
 	str r2, [r1, o_MusicPlayerTrack_cmdPtr]
-ply_pend_done:
+.done:
 	bx lr
 	thumb_func_end ply_pend
 
@@ -1097,13 +1097,13 @@ m4aSoundVSync:
 	ldr r3, [r0, o_SoundInfo_ident]
 	subs r3, r2
 	cmp r3, 1
-	bhi m4aSoundVSync_Done
+	bhi .done
 
 	@ Decrement the PCM DMA counter. If it reaches 0, we need to do a DMA.
 	ldrb r1, [r0, o_SoundInfo_pcmDmaCounter]
 	subs r1, 1
 	strb r1, [r0, o_SoundInfo_pcmDmaCounter]
-	bgt m4aSoundVSync_Done
+	bgt .done
 
 	@ Reload the PCM DMA counter.
 	ldrb r1, [r0, o_SoundInfo_pcmDmaPeriod]
@@ -1113,20 +1113,20 @@ m4aSoundVSync:
 
 	ldr r1, [r2, 0x8] @ DMA1CNT
 	lsls r1, 7
-	bcc m4aSoundVSync_SkipDMA1 @ branch if repeat bit isn't set
+	bcc .skipDMA1 @ branch if repeat bit isn't set
 
 	ldr r1, =((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4
 	str r1, [r2, 0x8] @ DMA1CNT
 
-m4aSoundVSync_SkipDMA1:
+.skipDMA1:
 	ldr r1, [r2, 0xC + 0x8] @ DMA2CNT
 	lsls r1, 7
-	bcc m4aSoundVSync_SkipDMA2 @ branch if repeat bit isn't set
+	bcc .skipDMA2 @ branch if repeat bit isn't set
 
 	ldr r1, =((DMA_ENABLE | DMA_START_NOW | DMA_32BIT | DMA_SRC_INC | DMA_DEST_FIXED) << 16) | 4
 	str r1, [r2, 0xC + 0x8] @ DMA2CNT
 
-m4aSoundVSync_SkipDMA2:
+.skipDMA2:
 
 	@ turn off DMA1/DMA2
 	movs r1, DMA_32BIT >> 8
@@ -1140,7 +1140,7 @@ m4aSoundVSync_SkipDMA2:
 	strh r1, [r2, 0xA]       @ DMA1CNT_H
 	strh r1, [r2, 0xC + 0xA] @ DMA2CNT_H
 
-m4aSoundVSync_Done:
+.done:
 	bx lr
 
 	.pool
@@ -1492,33 +1492,33 @@ TrackStop:
 	ldrb r1, [r5, o_MusicPlayerTrack_flags]
 	movs r0, 0x80
 	tst r0, r1
-	beq TrackStop_Done
+	beq .done
 	ldr r4, [r5, o_MusicPlayerTrack_chan]
 	cmp r4, 0
-	beq TrackStop_3
+	beq .branch3
 	movs r6, 0
-TrackStop_Loop:
+.loop:
 	ldrb r0, [r4, o_SoundChannel_status]
 	cmp r0, 0
-	beq TrackStop_2
+	beq .branch2
 	ldrb r0, [r4, o_SoundChannel_type]
 	movs r3, 0x7
 	ands r0, r3
-	beq TrackStop_1
+	beq .branch1
 	ldr r3, =SOUND_INFO_PTR
 	ldr r3, [r3]
 	ldr r3, [r3, o_SoundInfo_CgbOscOff]
 	bl call_r3
-TrackStop_1:
+.branch1:
 	strb r6, [r4, o_SoundChannel_status]
-TrackStop_2:
+.branch2:
 	str r6, [r4, o_SoundChannel_track]
 	ldr r4, [r4, o_SoundChannel_np]
 	cmp r4, 0
-	bne TrackStop_Loop
-TrackStop_3:
+	bne .loop
+.branch3:
 	str r4, [r5, o_MusicPlayerTrack_chan]
-TrackStop_Done:
+.done:
 	pop {r4-r6}
 	pop {r0}
 	bx r0

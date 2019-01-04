@@ -67,6 +67,15 @@ struct symbol_flags {
        before.  It is cleared as soon as any direct reference to the
        symbol is present.  */
     unsigned int sy_weakrefd : 1;
+    
+    /* This is set to indicate that this is an agbasm local label.
+       When a symbol is found outside of colon(const char *), it exists
+       in an intermediate state where the value is not fully resolved.
+       Once the symbol is found and passed to colon(const char *), we
+       need to know whether the symbol defined is a non-local label,
+       so we know when to update the current non-local label for
+       creation of local labels */
+    unsigned int sy_agbasm_local_label : 1;
 };
 
 /* The information we keep for a symbol.  Note that the symbol table

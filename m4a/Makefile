@@ -12,7 +12,7 @@ CC1 := ../old_agbcc
 CFLAGS := -mthumb-interwork -O2
 
 CPPFLAGS := -I ../ginclude -I ../libc/include -nostdinc -undef
-ASFLAGS := -mcpu=arm7tdmi
+ASFLAGS := -mcpu=arm7tdmi -g
 ARFLAGS := rc
 
 C_SRCS := m4a_2.c m4a_4.c m4a_tables.c
@@ -41,4 +41,4 @@ $(C_OBJS): %.o: %.c
 	$(AS) $(ASFLAGS) -o $@ $*.s
 
 $(ASM_OBJS): %.o: %.s
-	$(AS) $(ASFLAGS) -o $@ $<
+	$(AS) $(ASFLAGS) --agbasm -o $@ $<

@@ -2847,6 +2847,9 @@ static void assign_symbol(char *name, int mode)
 
     if ((symbolP = symbol_find(name)) == NULL
         && (symbolP = md_undefined_symbol(name)) == NULL) {
+        if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX /* && name[1] != '\0' */) {
+            as_bad(_("Cannot start non-label symbol `%s' with %c in agbasm mode"), name, AGBASM_LOCAL_LABEL_PREFIX);
+        }
         symbolP = symbol_find_or_make(name);
 #ifndef NO_LISTING
         /* When doing symbol listings, play games with dummy fragments living

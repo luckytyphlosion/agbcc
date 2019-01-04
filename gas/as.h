@@ -345,6 +345,17 @@ extern int verbose;
    increase malloc calls for monitoring memory allocation.  */
 extern int chunksize;
 
+enum agbasm_type {
+    AGBASM_DISABLED,
+    AGBASM_NORMAL,
+    AGBASM_DEBUG
+};
+
+/* agbasm features enabled */
+COMMON enum agbasm_type flag_agbasm;
+/* filename for debug output */
+extern char * agbasm_debug_filename;
+
 struct _pseudo_type {
     /* assembler mnemonic, lower case, no '.' */
     const char *poc_name;
@@ -457,6 +468,8 @@ int eh_frame_estimate_size_before_relax(fragS *);
 int eh_frame_relax_frag(fragS *);
 void eh_frame_convert_frag(fragS *);
 int generic_force_reloc(struct fix *);
+/* debug output for agbasm */
+void agbasm_debug_write(const char * format, ...);
 
 #include "expr.h"               /* Before targ-*.h */
 

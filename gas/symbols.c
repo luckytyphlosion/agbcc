@@ -47,6 +47,13 @@ symbolS *symbol_lastP;
 symbolS abs_symbol;
 symbolS dot_symbol;
 
+static symbolS * current_agbasm_nonlocal_label = NULL;
+static symbolS ** current_agbasm_local_labels = NULL;
+static unsigned long agbasm_local_label_count = 0;
+static unsigned long agbasm_local_label_max = 0;
+#define AGBASM_LOCAL_LABEL_BUMP_BY 10
+#define AGBASM_LOCAL_LABEL_FILENAME_HEAP_BUMP_BY 256
+
 #define debug_verify_symchain(root, last) ((void)0)
 
 #define DOLLAR_LABEL_CHAR       '\001'
@@ -64,6 +71,11 @@ static long dollar_label_instance(long);
 static long fb_label_instance(long);
 
 static void print_binary(FILE *, const char *, expressionS *);
+
+static int is_not_reserved_section_name(const char *);
+static void find_undefined_agbasm_local_labels_then_clear(symbolS *);
+// static void add_agbasm_local_label_to_scope(symbolS *);
+
 
 /* Return a pointer to a new symbol.  Die if we can't make a new
    symbol.  Fill in the symbol's values.  Add symbol to end of symbol
@@ -118,6 +130,11 @@ static const char *save_symbol_name(const char *name)
     return ret;
 }
 
+static int is_not_reserved_section_name(const char * name)
+{
+    return strcmp(TEXT_SECTION_NAME, name) && strcmp(BSS_SECTION_NAME, name) &&strcmp(DATA_SECTION_NAME, name) && strcmp(".rodata", name);
+}
+
 symbolS *symbol_create(const char *name,  /* It is copied, the caller can destroy/modify.  */
                        segT segment, /* Segment identifier (SEG_<something>).  */
                        valueT valu, /* Symbol value.  */
@@ -125,8 +142,19 @@ symbolS *symbol_create(const char *name,  /* It is copied, the caller can destro
 {
     const char *preserved_copy_of_name;
     symbolS *symbolP;
+    int is_agbasm_local_label = FALSE;
 
-    preserved_copy_of_name = save_symbol_name(name);
+    if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+        if (!current_agbasm_nonlocal_label) {
+            as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
+        }
+        name = concat(S_GET_NAME(current_agbasm_nonlocal_label), name, (char*)NULL);
+        preserved_copy_of_name = save_symbol_name(name);
+        free((char *)name);
+        is_agbasm_local_label = TRUE;
+    } else {
+        preserved_copy_of_name = save_symbol_name(name);
+    }
 
     symbolP = (symbolS*)obstack_alloc(&notes, sizeof(symbolS));
 
@@ -151,6 +179,9 @@ symbolS *symbol_create(const char *name,  /* It is copied, the caller can destro
     tc_symbol_new_hook(symbolP);
 #endif
 
+    if (is_agbasm_local_label) {
+        symbol_set_agbasm_local_label(symbolP);
+    }
     return symbolP;
 }
 
@@ -256,6 +287,8 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
     /* We copy this string: OK to alter later.  */)
 {
     symbolS *symbolP; /* Symbol we are working with.  */
+    int agbasm_local_label = FALSE; 
+    // const char * agbasm_local_label_name = NULL;
 
     /* Sun local labels go out of scope whenever a non-local symbol is
        defined.  */
@@ -309,14 +342,25 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
 #ifdef obj_frob_colon
     obj_frob_colon(sym_name);
 #endif
-
+    if (flag_agbasm && sym_name[0] == AGBASM_LOCAL_LABEL_PREFIX /*'.'*/ && is_not_reserved_section_name(sym_name)) {
+        if (!current_agbasm_nonlocal_label) {
+            as_fatal(_("Local label %s defined before non-local label"), sym_name);
+        }
+        // agbasm_local_label_name = sym_name;
+        sym_name = concat(S_GET_NAME(current_agbasm_nonlocal_label), sym_name, (char*)NULL);
+        agbasm_local_label = TRUE;
+    }
     if ((symbolP = symbol_find(sym_name)) != 0) {
         S_CLEAR_WEAKREFR(symbolP);
-#ifdef RESOLVE_SYMBOL_REDEFINITION
+// unused
+/*#ifdef RESOLVE_SYMBOL_REDEFINITION
         if (RESOLVE_SYMBOL_REDEFINITION(symbolP)) {
+            if (agbasm_local_label) {
+                free(sym_name);
+            }
             return symbolP;
         }
-#endif
+#endif*/
         /* Now check for undefined symbols.  */
         if (LOCAL_SYMBOL_CHECK(symbolP)) {
             struct local_symbol *locsym = (struct local_symbol *)symbolP;
@@ -326,12 +370,18 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                     || locsym->lsy_section != now_seg
                     || locsym->lsy_value != frag_now_fix())) {
                 as_bad(_("symbol `%s' is already defined"), sym_name);
+                if (agbasm_local_label) {
+                    free((char *)sym_name);
+                }
                 return symbolP;
             }
 
             locsym->lsy_section = now_seg;
             local_symbol_set_frag(locsym, frag_now);
             locsym->lsy_value = frag_now_fix();
+        // else if symbol isn't defined and symbol isn't equated
+        // or symbol is common
+        // or symbol is volatile
         } else if (!(S_IS_DEFINED(symbolP) || symbol_equated_p(symbolP))
                    || S_IS_COMMON(symbolP)
                    || S_IS_VOLATILE(symbolP)) {
@@ -341,6 +391,10 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                 S_CLEAR_VOLATILE(symbolP);
             }
             if (S_GET_VALUE(symbolP) == 0) {
+                if (flag_agbasm && !symbol_is_agbasm_local_label(symbolP)) {
+                    find_undefined_agbasm_local_labels_then_clear(symbolP);
+                    // agbasm_debug_write("colon found defined but zero valued symbol: %s", sym_name);
+                }
                 define_sym_at_dot(symbolP);
 #ifdef N_UNDF
                 know(N_UNDF == 0);
@@ -357,6 +411,12 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                    This only used to be allowed on VMS gas, but Sun cc
                    on the sparc also depends on it.  */
 
+                /*
+                  if symbol is not debug and symbol is both not defined and is common and symbol is external
+                  or the symbol's segment is bss
+                  and the current segment is the data section, the bss section, or the section of the current symbol
+                */
+                /* this might not be relevant to agbasm */
                 if (((!S_IS_DEBUG(symbolP)
                       && (!S_IS_DEFINED(symbolP) || S_IS_COMMON(symbolP))
                       && S_IS_EXTERNAL(symbolP))
@@ -366,11 +426,15 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                         || now_seg == S_GET_SEGMENT(symbolP))) {
                     /* Select which of the 2 cases this is.  */
                     if (now_seg != data_section) {
+                        if (flag_agbasm == AGBASM_DEBUG) {
+                            agbasm_debug_write("colon found defined but not resolved symbol: %s", sym_name);
+                        }
                         /* New .comm for prev .comm symbol.
 
                            If the new size is larger we just change its
                            value.  If the new size is smaller, we ignore
                            this symbol.  */
+
                         if (S_GET_VALUE(symbolP)
                             < ((unsigned)frag_now_fix())) {
                             S_SET_VALUE(symbolP, (valueT)frag_now_fix());
@@ -399,6 +463,11 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                 define_sym_at_dot(symbolP);
             }
         }
+    } else if (agbasm_local_label) {
+        symbolP = symbol_new(sym_name, now_seg, (valueT)frag_now_fix(),
+                             frag_now);
+        symbol_set_agbasm_local_label(symbolP);
+        symbol_table_insert(symbolP);
     } else if (!flag_keep_locals && bfd_is_local_label_name(stdoutput, sym_name)) {
         symbolP = (symbolS*)local_symbol_make(sym_name, now_seg,
                                               (valueT)frag_now_fix(),
@@ -406,7 +475,7 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
     } else {
         symbolP = symbol_new(sym_name, now_seg, (valueT)frag_now_fix(),
                              frag_now);
-
+        find_undefined_agbasm_local_labels_then_clear(symbolP);
         symbol_table_insert(symbolP);
     }
 
@@ -431,6 +500,9 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
     obj_frob_label(symbolP);
 #endif
 
+    if (agbasm_local_label) {
+        free((char *)sym_name);
+    }
     return symbolP;
 }
 
@@ -462,7 +534,7 @@ void symbol_table_insert(symbolS *symbolP)
 /* If a symbol name does not exist, create it as undefined, and insert
    it into the symbol table.  Return a pointer to it.  */
 
-symbolS *symbol_find_or_make(const char *name)
+symbolS *symbol_find_or_make(const char * name)
 {
     symbolS *symbolP;
 
@@ -500,7 +572,7 @@ symbolS *symbol_make(const char *name)
         symbolP = symbol_new(name, undefined_section, (valueT)0, &zero_address_frag);
     }
 
-    return(symbolP);
+    return symbolP;
 }
 
 symbolS *symbol_clone(symbolS *orgsymP, int replace)
@@ -657,9 +729,21 @@ symbolS *symbol_find_exact_noref(const char *name, int noref)
 {
     struct local_symbol *locsym;
     symbolS* sym;
+    int agbasm_local_label = FALSE;
+
+    if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+        if (!current_agbasm_nonlocal_label) {
+            as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
+        }
+        name = concat(S_GET_NAME(current_agbasm_nonlocal_label), name, (char*)NULL);
+        agbasm_local_label = TRUE;
+    }
 
     locsym = (struct local_symbol *)hash_find(local_hash, name);
     if (locsym != NULL) {
+        if (agbasm_local_label) {
+            free((char *)name);
+        }
         return (symbolS*)locsym;
     }
 
@@ -672,6 +756,10 @@ symbolS *symbol_find_exact_noref(const char *name, int noref)
        local_symbol table when it is turned into a weak symbol.  */
     if (sym && !noref) {
         S_CLEAR_WEAKREFD(sym);
+    }
+    
+    if (agbasm_local_label) {
+        free((char *)name);
     }
 
     return sym;
@@ -1471,6 +1559,92 @@ int snapshot_symbol(symbolS **symbolPP, valueT *valueP, segT *segP, fragS **frag
     return 1;
 }
 
+/*
+static symbolS * current_agbasm_nonlocal_label = NULL;
+static symbolS ** current_agbasm_local_labels = NULL;
+static unsigned long agbasm_local_label_count = 0;
+static unsigned long agbasm_local_label_max = 0;
+*/
+
+static unsigned int * current_agbasm_local_label_line_nums = NULL;
+static char * current_agbasm_local_label_filename_heap = NULL;
+static char ** current_agbasm_local_label_filenames = NULL;
+static unsigned long agbasm_filename_heap_size = 0;
+static unsigned long agbasm_filename_heap_max = 0;
+
+
+static void add_agbasm_local_label_to_scope(symbolS * s)
+{
+    unsigned int current_agbasm_local_label_line_num;
+    const char * temp_filename;
+    unsigned int filename_length;
+
+    if (current_agbasm_local_labels == NULL) {
+        current_agbasm_local_labels = XNEWVEC(symbolS *, AGBASM_LOCAL_LABEL_BUMP_BY);
+        current_agbasm_local_label_line_nums = XNEWVEC(unsigned int, AGBASM_LOCAL_LABEL_BUMP_BY);
+        current_agbasm_local_label_filenames = XNEWVEC(char *, AGBASM_LOCAL_LABEL_BUMP_BY);
+        current_agbasm_local_label_filename_heap = XNEWVEC(char, AGBASM_LOCAL_LABEL_FILENAME_HEAP_BUMP_BY);
+        agbasm_local_label_count = 0;
+        agbasm_local_label_max = AGBASM_LOCAL_LABEL_BUMP_BY;
+        agbasm_filename_heap_size = 0;
+        agbasm_filename_heap_max = AGBASM_LOCAL_LABEL_FILENAME_HEAP_BUMP_BY;
+    /* if we needed to grow  */
+    } else if (agbasm_local_label_count == agbasm_local_label_max) {
+        agbasm_local_label_max += AGBASM_LOCAL_LABEL_BUMP_BY;
+        current_agbasm_local_labels = XRESIZEVEC(symbolS *, current_agbasm_local_labels, agbasm_local_label_max);
+        current_agbasm_local_label_line_nums = XRESIZEVEC(unsigned int, current_agbasm_local_label_line_nums, agbasm_local_label_max);
+        current_agbasm_local_label_filenames = XRESIZEVEC(char *, current_agbasm_local_label_filenames, agbasm_local_label_max);
+    } else if (agbasm_local_label_count > agbasm_local_label_max) {
+        abort();
+    }
+
+    temp_filename = as_where(&current_agbasm_local_label_line_num);
+    // agbasm_debug_write(_("add_agbasm_local_label_to_scope: %s"), temp_filename);
+    current_agbasm_local_labels[agbasm_local_label_count] = s;
+    current_agbasm_local_label_line_nums[agbasm_local_label_count] = current_agbasm_local_label_line_num;
+
+    filename_length = strlen(temp_filename) + 1;
+    if (filename_length + agbasm_filename_heap_size > agbasm_filename_heap_max) {
+        if (filename_length > AGBASM_LOCAL_LABEL_FILENAME_HEAP_BUMP_BY) {
+            agbasm_filename_heap_max += filename_length;
+        }
+        agbasm_filename_heap_max += AGBASM_LOCAL_LABEL_FILENAME_HEAP_BUMP_BY;
+        current_agbasm_local_label_filename_heap = XRESIZEVEC(char, current_agbasm_local_label_filename_heap, agbasm_filename_heap_max);
+    }
+    current_agbasm_local_label_filenames[agbasm_local_label_count] = &current_agbasm_local_label_filename_heap[agbasm_filename_heap_size];
+    memcpy(current_agbasm_local_label_filenames[agbasm_local_label_count], temp_filename, filename_length);
+    agbasm_filename_heap_size += filename_length;
+
+    agbasm_local_label_count++;
+}
+
+static void find_undefined_agbasm_local_labels_then_clear(symbolS * new_cur_agbasm_nonlocal_label)
+{
+    long i;
+    
+    for (i = 0; i < agbasm_local_label_count; i++) {
+        symbolS * current_agbasm_local_label = current_agbasm_local_labels[i];
+        
+        gas_assert(symbol_is_agbasm_local_label(current_agbasm_local_label));
+        
+        if (S_IS_COMMON(current_agbasm_local_label)) {
+            as_warn(_("Not sure if agbasm local label can be common (label: %s)"), S_GET_NAME(current_agbasm_local_label));
+        }
+        if (S_IS_VOLATILE(current_agbasm_local_label)) {
+            as_warn(_("Not sure if agbasm local label can be volatile (label: %s)"), S_GET_NAME(current_agbasm_local_label));
+        }
+        if (!(S_IS_DEFINED(current_agbasm_local_label) || symbol_equated_p(current_agbasm_local_label)) && S_GET_VALUE(current_agbasm_local_label) == 0) {
+            as_bad_where(current_agbasm_local_label_filenames[i], current_agbasm_local_label_line_nums[i], _("agbasm local label `%s' was not defined within its scope"), S_GET_NAME(current_agbasm_local_label));
+        }
+        current_agbasm_local_labels[i] = NULL;
+        current_agbasm_local_label_line_nums[i] = 0;
+        current_agbasm_local_label_filenames[i] = NULL;
+    }
+    agbasm_local_label_count = 0;
+    agbasm_filename_heap_size = 0;
+    current_agbasm_nonlocal_label = new_cur_agbasm_nonlocal_label;
+}
+
 /* Dollar labels look like a number followed by a dollar sign.  Eg, "42$".
    They are *really* local.  That is, they go out of scope whenever we see a
    label that isn't local.  Also, like fb labels, there can be multiple
@@ -2056,6 +2230,9 @@ int S_IS_FORWARD_REF(const symbolS *s)
 
 const char *S_GET_NAME(symbolS *s)
 {
+    if (!s) {
+        abort();
+    }
     if (LOCAL_SYMBOL_CHECK(s)) {
         return ((struct local_symbol *)s)->lsy_name;
     }
@@ -2510,6 +2687,25 @@ void symbol_set_bfdsym(symbolS *s, asymbol *bsym)
         s->bsym = bsym;
     }
     /* else XXX - What do we do now ?  */
+}
+
+void symbol_set_agbasm_local_label(symbolS *s)
+{
+    if (LOCAL_SYMBOL_CHECK(s)) {
+        as_warn(_("Not sure if a local symbol being set to an agbasm local label is possible or has defined behaviour. (name: %s"), S_GET_NAME(s));
+        s = local_symbol_convert((struct local_symbol *)s);
+    }
+    s->sy_flags.sy_agbasm_local_label = TRUE;
+    add_agbasm_local_label_to_scope(s);
+}
+
+int symbol_is_agbasm_local_label(symbolS *s)
+{
+    if (LOCAL_SYMBOL_CHECK(s)) {
+        as_warn(_("Not sure if a local symbol can be an agbasm local label. (name: %s"), S_GET_NAME(s));
+        s = local_symbol_convert((struct local_symbol *)s);
+    }
+    return s->sy_flags.sy_agbasm_local_label;
 }
 
 #ifdef OBJ_SYMFIELD_TYPE

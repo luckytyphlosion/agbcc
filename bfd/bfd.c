@@ -98,6 +98,7 @@ CODE_FRAGMENT
 static bfd_error_type bfd_error = bfd_error_no_error;
 static bfd *input_bfd = NULL;
 static bfd_error_type input_error = bfd_error_no_error;
+bfd_boolean agbasm_local_label_syntax = FALSE;
 
 const char *const bfd_errmsgs[] =
 {
@@ -124,6 +125,22 @@ const char *const bfd_errmsgs[] =
   N_("error reading %s: %s"),
   N_("#<invalid error code>")
 };
+
+/*
+FUNCTION
+    bfd_set_agbasm_local_label_syntax
+
+SYNOPSIS
+    void bfd_set_agbasm_local_label_syntax (bfd_boolean new_agbasm_local_label_syntax);
+
+DESCRIPTION
+    Set the agbasm_local_label_syntax to be @var{new_agbasm_local_label_syntax}.
+*/
+
+void bfd_set_agbasm_local_label_syntax(bfd_boolean new_agbasm_local_label_syntax)
+{
+    agbasm_local_label_syntax = new_agbasm_local_label_syntax;
+}
 
 /*
 FUNCTION

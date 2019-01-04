@@ -45,6 +45,8 @@
 #include "bfdver.h"
 #include "write.h"
 
+static void agbasm_debug_init(void);
+
 /* We build a list of defsyms as we read the options, and then define
    them after we have initialized everything.  */
 struct defsym_list {
@@ -104,6 +106,8 @@ static long start_time;
 
 static int flag_macro_alternate;
 
+char * agbasm_debug_filename;
+
 void print_version_id(void)
 {
     static int printed;
@@ -135,6 +139,10 @@ Options:\n\
                           s      include symbols\n\
                           =FILE  list to FILE (must be last sub-option)\n"));
 
+    fprintf(stream, _("\
+  --agbasm                enable agbasm features\n"));
+    fprintf(stream, _("\
+  --agbasm-debug FILE     enable agbasm debug info\n"));
     fprintf(stream, _("\
   --alternate             initially turn on alternate macro syntax\n"));
     fprintf(stream, _("\
@@ -329,7 +337,9 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_WARN_FATAL,
         OPTION_COMPRESS_DEBUG,
         OPTION_NOCOMPRESS_DEBUG,
-        OPTION_NO_PAD_SECTIONS /* = STD_BASE + 40 */
+        OPTION_NO_PAD_SECTIONS, /* = STD_BASE + 40 */
+        OPTION_AGBASM,
+        OPTION_AGBASM_DEBUG
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
     };
@@ -344,6 +354,8 @@ static void parse_args(int * pargc, char *** pargv)
            considering that -a is an abbreviation for --alternate.  This is
            necessary because -a=<FILE> is a valid switch but getopt would
            normally reject it since --alternate does not take an argument.  */
+        , { "agbasm", no_argument, NULL, OPTION_AGBASM}
+        , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}        
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
         , { "al", optional_argument, NULL, OPTION_AL }
@@ -540,6 +552,16 @@ This program has absolutely no warranty.\n"));
 
         case OPTION_NOCOMPRESS_DEBUG:
             flag_compress_debug = COMPRESS_DEBUG_NONE;
+            break;
+
+        case OPTION_AGBASM:
+            flag_agbasm = AGBASM_NORMAL;
+            break;
+        
+        case OPTION_AGBASM_DEBUG:
+            flag_agbasm = AGBASM_DEBUG;
+            agbasm_debug_filename = optarg;
+            agbasm_debug_init();
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:
@@ -1039,6 +1061,10 @@ int main(int argc, char ** argv)
     output_file_create(out_file_name);
     gas_assert(stdoutput != 0);
 
+    /* Tell bfd whether local labels can start with only a dot */
+    bfd_set_agbasm_local_label_syntax(flag_agbasm != AGBASM_DISABLED);
+
+    /* not related to above line */
     dot_symbol_init();
 
 #ifdef tc_init_after_args
@@ -1149,4 +1175,51 @@ int main(int argc, char ** argv)
     print_dependencies();
 
     xexit(EXIT_SUCCESS);
+}
+
+static void agbasm_debug_init(void)
+{
+    FILE *f;
+    if (agbasm_debug_filename == NULL) {
+        as_bad(_("agbasm debug filename is NULL"));
+    }
+
+    f = fopen(agbasm_debug_filename, FOPEN_WT);
+    if (f == NULL) {
+        as_bad(_("can't open `%s' for writing"), agbasm_debug_filename);
+    }
+
+    if (fclose(f)) {
+        as_bad(_("agbasm debug: can't close `%s'"), agbasm_debug_filename);
+    }
+}
+
+/* agbasm debug routines are here for now to avoid touching the Makefile */
+void agbasm_debug_write(const char * format, ...)
+{
+    FILE *f;
+    va_list args;
+
+    if (flag_agbasm != AGBASM_DEBUG) {
+        return;
+    }
+
+    if (agbasm_debug_filename == NULL) {
+        as_bad(_("agbasm debug filename is NULL"));
+    }
+
+    f = fopen(agbasm_debug_filename, FOPEN_AT);
+    if (f == NULL) {
+        as_bad(_("can't open `%s' for writing"), agbasm_debug_filename);
+    }
+
+    va_start(args, format);
+    vfprintf(f, format, args);
+    va_end(args);
+
+    putc('\n', f);
+
+    if (fclose(f)) {
+        as_bad(_("agbasm debug: can't close `%s'"), agbasm_debug_filename);
+    }
 }

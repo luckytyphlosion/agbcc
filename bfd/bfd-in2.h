@@ -531,6 +531,10 @@ void bfd_putl24 (bfd_vma, void *);
 void bfd_putb16 (bfd_vma, void *);
 void bfd_putl16 (bfd_vma, void *);
 
+/* Hack to indicate diferent local symbol syntax when using agbasm local labels */
+void bfd_set_agbasm_local_label_syntax(bfd_boolean);
+extern bfd_boolean agbasm_local_label_syntax;
+
 /* Byte swapping routines which take size and endiannes as arguments.  */
 
 bfd_uint64_t bfd_get_bits (const void *, int, bfd_boolean);

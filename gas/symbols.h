@@ -188,6 +188,9 @@ extern int symbol_shadow_p(symbolS *);
 extern asymbol *symbol_get_bfdsym(symbolS *);
 extern void symbol_set_bfdsym(symbolS *, asymbol *);
 extern int symbol_same_p(symbolS *, symbolS *);
+extern void symbol_set_agbasm_local_label(symbolS *);
+extern int symbol_is_agbasm_local_label(symbolS *);
+
 
 #ifdef OBJ_SYMFIELD_TYPE
 OBJ_SYMFIELD_TYPE *symbol_get_obj(symbolS *);
@@ -196,3 +199,5 @@ OBJ_SYMFIELD_TYPE *symbol_get_obj(symbolS *);
 #ifdef TC_SYMFIELD_TYPE
 TC_SYMFIELD_TYPE *symbol_get_tc(symbolS *);
 #endif
+
+#define AGBASM_LOCAL_LABEL_PREFIX '.'

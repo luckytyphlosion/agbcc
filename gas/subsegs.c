@@ -223,6 +223,7 @@ symbolS *section_symbol(segT sec)
         s = symbol_create(sec->symbol->name, sec, 0, &zero_address_frag);
     } else {
         segT seg;
+        agbasm_debug_write("section_symbol: %s", sec->symbol->name);
         s = symbol_find(sec->symbol->name);
         /* We have to make sure it is the right symbol when we
            have multiple sections with the same section name.  */
