@@ -109,7 +109,9 @@ old_agbcc$(EXE): agbcc$(EXE)
 
 old: old_agbcc$(EXE)
 old_gcc: old_agbcc$(EXE)
+ifneq ($(EXE),)
 old_agbcc: old_agbcc$(EXE)
+endif
 
 gcc_clean:
 	$(RM) agbcc$(EXE)
@@ -119,7 +121,9 @@ old_gcc_clean:
 	$(RM) old_agbcc$(EXE)
 	@$(MAKE) -C gcc clean
 
+ifneq ($(EXE),)
 agbcc: agbcc$(EXE)
+endif
 agbcc$(EXE):
 	@$(MAKE) -C gcc tidy
 	@$(MAKE) -C gcc BASE_CFLAGS="-DAGBCC_VERSION=1 -std=gnu11 -O0"
@@ -129,7 +133,7 @@ agbcc$(EXE):
 binutils_clean: $(CLEAN)
 
 libc.a: libc/libc.a
-	cp libc/libc.a libc.a
+	cp $< $@
 libc/libc.a: old_gcc binutils
 	@$(MAKE) -C libc
 
@@ -140,7 +144,7 @@ libc_clean:
 	@$(MAKE) -C libc clean
 
 libgcc.a: libgcc/libgcc.a
-	cp libgcc/libgcc.a libgcc.a
+	cp $< $@
 
 libgcc/libgcc.a: old_gcc binutils
 	@$(MAKE) -C libgcc
@@ -202,6 +206,8 @@ librfu/librfu_%.a: agbcc binutils
 	@$(MAKE) -C librfu $(TARGET)
 
 librfu: librfu_1024.a librfu_1026.a
+
+.PRECIOUS: librfu/librfu_1024.a librfu/librfu_1026.a
 
 librfu_clean:
 	$(RM) librfu_1024.a librfu_1026.a
