@@ -14,6 +14,7 @@ CFLAGS := -mthumb-interwork -O2
 CPPFLAGS := -I ../ginclude -I ../libc/include -nostdinc -undef
 ASFLAGS := -mcpu=arm7tdmi -g
 ARFLAGS := rc
+ASDEBUGFLAGS := --agbasm-debug $(<:.s=.log)
 
 C_SRCS := m4a_2.c m4a_4.c m4a_tables.c
 C_OBJS := $(C_SRCS:%.c=%.o)
@@ -42,5 +43,4 @@ $(C_OBJS): %.o: %.c
 	$(AS) $(ASFLAGS) -o $@ $*.s
 
 $(ASM_OBJS): %.o: %.s
-	$(AS) $(ASFLAGS) --agbasm --agbasm-debug $(<:.s=.log) -o $@ $<
-	touch m4a_1.s
+	$(AS) $(ASFLAGS) --agbasm -o $@ $<
