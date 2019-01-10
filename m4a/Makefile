@@ -42,4 +42,5 @@ $(C_OBJS): %.o: %.c
 	$(AS) $(ASFLAGS) -o $@ $*.s
 
 $(ASM_OBJS): %.o: %.s
-	$(AS) $(ASFLAGS) --agbasm -o $@ $<
+	$(AS) $(ASFLAGS) --agbasm --agbasm-debug $(<:.s=.log) -o $@ $<
+	touch m4a_1.s

@@ -339,7 +339,9 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_NOCOMPRESS_DEBUG,
         OPTION_NO_PAD_SECTIONS, /* = STD_BASE + 40 */
         OPTION_AGBASM,
-        OPTION_AGBASM_DEBUG
+        OPTION_AGBASM_DEBUG,
+        OPTION_AGBASM_LOCAL_LABELS,
+        OPTION_AGBASM_COLONLESS_LABELS
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
     };
@@ -355,6 +357,8 @@ static void parse_args(int * pargc, char *** pargv)
            necessary because -a=<FILE> is a valid switch but getopt would
            normally reject it since --alternate does not take an argument.  */
         , { "agbasm", no_argument, NULL, OPTION_AGBASM}
+        , { "agbasm-local-labels", no_argument, NULL, OPTION_AGBASM_LOCAL_LABELS}
+        , { "agbasm-colonless-labels", no_argument, NULL, OPTION_AGBASM_COLONLESS_LABELS}
         , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}        
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
@@ -555,13 +559,21 @@ This program has absolutely no warranty.\n"));
             break;
 
         case OPTION_AGBASM:
-            flag_agbasm = AGBASM_NORMAL;
+            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS);
             break;
-        
+
         case OPTION_AGBASM_DEBUG:
-            flag_agbasm = AGBASM_DEBUG;
+            flag_agbasm |= AGBASM_DEBUG;
             agbasm_debug_filename = optarg;
             agbasm_debug_init();
+            break;
+
+        case OPTION_AGBASM_LOCAL_LABELS:
+            flag_agbasm |= AGBASM_LOCAL_LABELS;
+            break;
+
+        case OPTION_AGBASM_COLONLESS_LABELS:
+            flag_agbasm |= AGBASM_COLONLESS_LABELS;
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:
@@ -1062,7 +1074,7 @@ int main(int argc, char ** argv)
     gas_assert(stdoutput != 0);
 
     /* Tell bfd whether local labels can start with only a dot */
-    bfd_set_agbasm_local_label_syntax(flag_agbasm != AGBASM_DISABLED);
+    bfd_set_agbasm_local_label_syntax((flag_agbasm & AGBASM_LOCAL_LABELS) != 0);
 
     /* not related to above line */
     dot_symbol_init();
@@ -1200,7 +1212,7 @@ void agbasm_debug_write(const char * format, ...)
     FILE *f;
     va_list args;
 
-    if (flag_agbasm != AGBASM_DEBUG) {
+    if (!(flag_agbasm & AGBASM_DEBUG)) {
         return;
     }
 

@@ -144,7 +144,7 @@ symbolS *symbol_create(const char *name,  /* It is copied, the caller can destro
     symbolS *symbolP;
     int is_agbasm_local_label = FALSE;
 
-    if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
         }
@@ -342,7 +342,7 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
 #ifdef obj_frob_colon
     obj_frob_colon(sym_name);
 #endif
-    if (flag_agbasm && sym_name[0] == AGBASM_LOCAL_LABEL_PREFIX /*'.'*/ && is_not_reserved_section_name(sym_name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && sym_name[0] == AGBASM_LOCAL_LABEL_PREFIX /*'.'*/ && is_not_reserved_section_name(sym_name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label"), sym_name);
         }
@@ -391,7 +391,7 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                 S_CLEAR_VOLATILE(symbolP);
             }
             if (S_GET_VALUE(symbolP) == 0) {
-                if (flag_agbasm && !symbol_is_agbasm_local_label(symbolP)) {
+                if ((flag_agbasm & AGBASM_LOCAL_LABELS) && !symbol_is_agbasm_local_label(symbolP)) {
                     find_undefined_agbasm_local_labels_then_clear(symbolP);
                     // agbasm_debug_write("colon found defined but zero valued symbol: %s", sym_name);
                 }
@@ -426,7 +426,7 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
                         || now_seg == S_GET_SEGMENT(symbolP))) {
                     /* Select which of the 2 cases this is.  */
                     if (now_seg != data_section) {
-                        if (flag_agbasm == AGBASM_DEBUG) {
+                        if (flag_agbasm & AGBASM_DEBUG) {
                             agbasm_debug_write("colon found defined but not resolved symbol: %s", sym_name);
                         }
                         /* New .comm for prev .comm symbol.
@@ -731,7 +731,7 @@ symbolS *symbol_find_exact_noref(const char *name, int noref)
     symbolS* sym;
     int agbasm_local_label = FALSE;
 
-    if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
         }

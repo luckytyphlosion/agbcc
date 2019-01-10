@@ -170,6 +170,14 @@ extern LITTLENUM_TYPE generic_bignum[];
 typedef char operator_rankT;
 
 extern char get_symbol_name(char **);
+extern char get_colonless_label_name(char **, int * colonless_label_type);
+
+#define COLONLESS_LABEL_IGNORE 0
+#define COLONLESS_LABEL_FAILURE 1
+#define COLONLESS_LABEL_HAS_COLON 2
+#define COLONLESS_LABEL_NO_COLON_WITH_NEWLINE 3
+
+
 extern char restore_line_pointer(char);
 extern void expr_begin(void);
 extern void expr_set_precedence(void);

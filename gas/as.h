@@ -345,14 +345,15 @@ extern int verbose;
    increase malloc calls for monitoring memory allocation.  */
 extern int chunksize;
 
-enum agbasm_type {
-    AGBASM_DISABLED,
-    AGBASM_NORMAL,
-    AGBASM_DEBUG
-};
+
+/* Bitflags for flag_agbasm */
+#define AGBASM_DISABLED 0x0
+#define AGBASM_LOCAL_LABELS 0x1
+#define AGBASM_COLONLESS_LABELS 0x2
+#define AGBASM_DEBUG 0x4
 
 /* agbasm features enabled */
-COMMON enum agbasm_type flag_agbasm;
+COMMON int flag_agbasm;
 /* filename for debug output */
 extern char * agbasm_debug_filename;
 

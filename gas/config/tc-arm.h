@@ -48,7 +48,7 @@ struct fix;
 #define DOUBLESLASH_LINE_COMMENTS
 
 /* We conditionally support labels without a colon.  */
-#define LABELS_WITHOUT_COLONS codecomposer_syntax
+#define LABELS_WITHOUT_COLONS ((flag_agbasm & AGBASM_COLONLESS_LABELS) != 0)
 extern bfd_boolean codecomposer_syntax;
 
 #define tc_symbol_chars arm_symbol_chars

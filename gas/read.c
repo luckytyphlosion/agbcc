@@ -874,6 +874,7 @@ void read_a_source_file(const char *name)
                 line_label = NULL;
 
                 if (LABELS_WITHOUT_COLONS || flag_m68k_mri) {
+                    int colonless_label_type = COLONLESS_LABEL_IGNORE;
                     next_char = *input_line_pointer;
                     /* Text at the start of a line must be a label, we
                        run down and stick a colon in.  */
@@ -883,9 +884,17 @@ void read_a_source_file(const char *name)
 
                         HANDLE_CONDITIONAL_ASSEMBLY(0);
 
-                        nul_char = get_symbol_name(&line_start);
-                        next_char = (nul_char == '"' ? input_line_pointer[1] : nul_char);
+                        if (LABELS_WITHOUT_COLONS) {
+                            nul_char = get_colonless_label_name(&line_start, &colonless_label_type);
+                            if (colonless_label_type == COLONLESS_LABEL_FAILURE) {
+                                input_line_pointer = line_start;
+                                goto try_not_colonless_label;
+                            }
+                        } else {
+                            nul_char = get_symbol_name(&line_start);
+                        }
 
+                        next_char = (nul_char == '"' ? input_line_pointer[1] : nul_char);
                         /* In MRI mode, the EQU and MACRO pseudoops must
                            be handled specially.  */
                         mri_line_macro = 0;
@@ -933,11 +942,21 @@ void read_a_source_file(const char *name)
                         next_char = restore_line_pointer(nul_char);
                         if (next_char == ':') {
                             input_line_pointer++;
+                        } else if (colonless_label_type == COLONLESS_LABEL_NO_COLON_WITH_NEWLINE) {
+                            /* we know that a newline is coming up, so just consume it */
+                            while (!is_end_of_line[*input_line_pointer]) {
+                                if (*input_line_pointer != ' ') {
+                                    abort();
+                                }
+                                input_line_pointer++;
+                            }
+                            continue;
                         }
                     }
                 }
             }
 
+try_not_colonless_label:
             /* We are at the beginning of a line, or similar place.
                We expect a well-formed assembler statement.
                A "symbol-name:" is a statement.
@@ -2847,8 +2866,8 @@ static void assign_symbol(char *name, int mode)
 
     if ((symbolP = symbol_find(name)) == NULL
         && (symbolP = md_undefined_symbol(name)) == NULL) {
-        if (flag_agbasm && name[0] == AGBASM_LOCAL_LABEL_PREFIX /* && name[1] != '\0' */) {
-            as_bad(_("Cannot start non-label symbol `%s' with %c in agbasm mode"), name, AGBASM_LOCAL_LABEL_PREFIX);
+        if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX /* && name[1] != '\0' */) {
+            as_bad(_("Cannot start non-label symbol `%s' with %c in agbasm local label mode"), name, AGBASM_LOCAL_LABEL_PREFIX);
         }
         symbolP = symbol_find_or_make(name);
 #ifndef NO_LISTING

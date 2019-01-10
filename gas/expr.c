@@ -2067,6 +2067,8 @@ int resolve_expression(expressionS *expressionP)
     return 1;
 }
 
+static char get_symbol_name_common(char **, int, int *);
+
 /* This lives here because it belongs equally in expr.c & read.c.
    expr.c is just a branch office read.c anyway, and putting it
    here lessens the crowd at read.c.
@@ -2082,6 +2084,40 @@ int resolve_expression(expressionS *expressionP)
    lines end in end-of-line.  */
 
 char get_symbol_name(char ** ilp_return)
+{
+    int unused_colonless_label_type = -1;
+    char return_value = get_symbol_name_common(ilp_return, FALSE, &unused_colonless_label_type);
+    if (unused_colonless_label_type != -1) {
+        abort();
+    }
+    return return_value;
+}
+
+/*
+   Like get_symbol_name, but tailored specifically to retrieving
+   a label name without a colon. It requires there to be a newline
+   after the symbol name. If no newline is after the symbol,
+   then a failure signal is sent. The start of the line is
+   stored in ilp_return regardless of success or failure.
+
+   Assume input_line_pointer is at start of symbol name, or the
+    start of a double quote enclosed symbol name.
+   Advance input_line_pointer past symbol name.
+   After removing whitespace, check if the symbol name ends in
+    a newline. If it doesn't, signal an error.
+   Turn the character after symbol name into a '\0',
+    returning its former value, which may be the closing double quote.
+   This allows a string compare (RMS wants symbol names to be strings)
+    of the symbol name.
+   There will always be a char following symbol name, because all good
+    lines end in end-of-line.  
+*/
+char get_colonless_label_name(char ** ilp_return, int * colonless_label_type)
+{
+    return get_symbol_name_common(ilp_return, TRUE, colonless_label_type);
+}
+
+static char get_symbol_name_common(char ** ilp_return, int with_newline, int * colonless_label_type)
 {
     char c;
 
@@ -2110,7 +2146,42 @@ char get_symbol_name(char ** ilp_return)
             as_warn(_("missing closing '\"'"));
         }
     }
-    *--input_line_pointer = 0;
+
+    if (with_newline) {
+        char * temp_input_line_pointer = input_line_pointer;
+
+        if (c != '"') {
+            temp_input_line_pointer--;
+        }
+        
+        if (*temp_input_line_pointer == ':') {
+            *colonless_label_type = COLONLESS_LABEL_HAS_COLON;
+        } else {
+            if (c == '"') {
+                as_warn(_("making a quoted colonless label"));
+            }
+            if (*temp_input_line_pointer == ' ') {
+                temp_input_line_pointer++;
+            }
+            // agbasm_debug_write("*temp_input_line_pointer: %02x", *temp_input_line_pointer);
+            if (is_end_of_line[(unsigned char)*temp_input_line_pointer]) {
+                *colonless_label_type = COLONLESS_LABEL_NO_COLON_WITH_NEWLINE;
+            } else {
+                if (ISPRINT(*temp_input_line_pointer)) {
+                    as_bad(_("agbasm colonless label does not end with a newline, assuming not a label (first unrecognized character is `%c')"),
+                        *temp_input_line_pointer);
+                } else {
+                    as_bad(_("agbasm colonless label does not end with a newline, assuming not a label (first unrecognized character valued 0x%x)"),
+                        *temp_input_line_pointer);
+                }
+                *colonless_label_type = COLONLESS_LABEL_FAILURE;
+                return c;
+            }
+        }
+    }
+
+    *--input_line_pointer = '\0';
+
     return c;
 }
 
