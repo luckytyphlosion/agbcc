@@ -345,7 +345,7 @@ bfd-configure:
 	    echo "Configuring in bfd...";                   \
 	        cd bfd && $(CONFIGURE);                     \
 	fi
-bfd-objs: bfd-configure
+bfd-objs: bfd-configure bfd-headers
 	@$(MAKE) -C bfd objs $(SUBSUBMAKEFLAGS)
 bfd-all: bfd-objs
 	@$(MAKE) -C bfd $(SUBSUBMAKEFLAGS)
@@ -354,7 +354,9 @@ bfd-clean: bfd-configure
 
 # All subdirs (aside from bfd and libiberty) need bfd.h to build.
 bfd-headers: bfd/stmp-bfd-h
-bfd/stmp-bfd-h: bfd-objs
+bfd/stmp-bfd-h: bfd-configure
+	@$(MAKE) -C bfd headers $(SUBSUBMAKEFLAGS)
+
 .PHONY: bfd-headers
 
 libiberty-configure:

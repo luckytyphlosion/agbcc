@@ -1017,7 +1017,7 @@ bfdver.h: $(srcdir)/version.h $(srcdir)/development.sh $(srcdir)/Makefile.in
 	    < $(srcdir)/version.h > $@;
 
 # A helper that only builds the object files, without linking.
-objs: headers $(OFILES) ofiles $(libbfd_a_OBJECTS)
+objs: $(OFILES) ofiles $(libbfd_a_OBJECTS)
 .PHONY: objs
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
