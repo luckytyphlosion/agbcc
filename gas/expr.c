@@ -2167,13 +2167,10 @@ static char get_symbol_name_common(char ** ilp_return, int with_newline, int * c
             if (is_end_of_line[(unsigned char)*temp_input_line_pointer]) {
                 *colonless_label_type = COLONLESS_LABEL_NO_COLON_WITH_NEWLINE;
             } else {
-                if (ISPRINT(*temp_input_line_pointer)) {
-                    as_bad(_("agbasm colonless label does not end with a newline, assuming not a label (first unrecognized character is `%c')"),
-                        *temp_input_line_pointer);
-                } else {
-                    as_bad(_("agbasm colonless label does not end with a newline, assuming not a label (first unrecognized character valued 0x%x)"),
-                        *temp_input_line_pointer);
-                }
+                *--input_line_pointer = '\0';
+                as_bad(_("agbasm colonless label `%s' does not end with a newline, assuming not a label"),
+                    *ilp_return);
+                *input_line_pointer++ = c;
                 *colonless_label_type = COLONLESS_LABEL_FAILURE;
                 return c;
             }

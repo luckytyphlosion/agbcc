@@ -941,10 +941,14 @@ void read_a_source_file(const char *name)
 
                         next_char = restore_line_pointer(nul_char);
                         if (next_char == ':') {
-                            input_line_pointer++;
+                            if (*++input_line_pointer == ':') {
+                                input_line_pointer++;
+                                S_SET_EXTERNAL(line_label);
+                                agbasm_debug_write(_("Set :: label to external: %s"), S_GET_NAME(line_label));
+                            }
                         } else if (colonless_label_type == COLONLESS_LABEL_NO_COLON_WITH_NEWLINE) {
                             /* we know that a newline is coming up, so just consume it */
-                            while (!is_end_of_line[*input_line_pointer]) {
+                            while (!is_end_of_line[(unsigned char)*input_line_pointer]) {
                                 if (*input_line_pointer != ' ') {
                                     abort();
                                 }
@@ -1010,9 +1014,18 @@ try_not_colonless_label:
                     line_label = colon(s); /* User-defined label.  */
                     restore_line_pointer(nul_char);
                     ++input_line_pointer;
+                    
 #ifdef tc_check_label
                     tc_check_label(line_label);
 #endif
+                    if (flag_agbasm & AGBASM_COLON_DEFINED_GLOBAL_LABELS) {
+                        if (*input_line_pointer == ':') {
+                            input_line_pointer++;
+                            S_SET_EXTERNAL(line_label);
+                            agbasm_debug_write(_("Set :: label to external: %s"), S_GET_NAME(line_label));
+                        }
+                    }
+
                     /* Input_line_pointer->after ':'.  */
                     SKIP_WHITESPACE();
                 } else if ((next_char == '=' && *rest == '=')

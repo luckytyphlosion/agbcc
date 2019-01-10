@@ -121,6 +121,49 @@ void print_version_id(void)
             VERSION, BFD_VERSION_STRING);
 }
 
+static void show_agbasm_help(FILE * stream)
+{
+    fprintf(stream, _("\
+  --agbasm                enable all agbasm features except --agbasm-debug\n"));
+    fprintf(stream, _("\
+  --agbasm-debug FILE     enable agbasm debug info. Outputs miscellaneous debugging print\n\
+                          statements to the specified file.\n"));
+    fprintf(stream, _("\
+  --agbasm-colonless-labels\n\
+                          enable agbasm colonless labels. This allows defining labels\n\
+                          without a colon at the end if the label is in column\n\
+                          zero and ends with a newline (after optional whitespace).\n\
+                          If the label does not end with a newline, then an error is\n\
+                          thrown and the label is assumed to be a statement.\n"));
+    fprintf(stream, _("\
+  --agbasm-colon-defined-global-labels\n\
+                          enable agbasm colon defined global labels. This allows setting\n\
+                          a label as global on definition by following the label name\n\
+                          with two colons, as opposed to one (e.g. `label::').\n"));
+    fprintf(stream, _("\
+  --agbasm-local-labels\n\
+                          enable agbasm local labels. These are like dollar local\n\
+                          labels (as in they go out of scope when a non-local label\n\
+                          is defined), but are not limited to a number as the label\n\
+                          name. An agbasm local label is prefixed (and thus defined)\n\
+                          with `%c'. Internally, an agbasm local label is actually\n\
+                          just a concatenation of the most recently defined\n\
+                          non-local label and the local label (including the prefix).\n\
+                          This gives us a safe way to canonicalize local label names\n\
+                          so that they can be exported for debug information. This\n\
+                          also means that local labels can be referenced outside\n\
+                          of their scope by using the canonicalized label name.\n\
+                          Note that agbasm local labels are NOT local symbols by\n\
+                          default.\n"), AGBASM_LOCAL_LABEL_PREFIX);
+    fprintf(stream, _("\
+  --agbasm-help           show this message and exit\n"));
+    fputc('\n', stream);
+
+    /*if (REPORT_BUGS_TO[0] && stream == stdout) {
+        fprintf(stream, _("Report bugs to %s\n"), REPORT_BUGS_TO);
+    }*/
+      
+}
 static void show_usage(FILE * stream)
 {
     fprintf(stream, _("Usage: %s [option...] [asmfile...]\n"), myname);
@@ -140,9 +183,19 @@ Options:\n\
                           =FILE  list to FILE (must be last sub-option)\n"));
 
     fprintf(stream, _("\
-  --agbasm                enable agbasm features\n"));
+  --agbasm                enable all agbasm features except --agbasm-debug\n"));
     fprintf(stream, _("\
   --agbasm-debug FILE     enable agbasm debug info\n"));
+    fprintf(stream, _("\
+  --agbasm-colonless-labels\n\
+                          enable agbasm colonless labels.\n"));
+    fprintf(stream, _("\
+  --agbasm-colon-defined-global-labels\n\
+                          enable agbasm colon defined global labels.\n"));
+    fprintf(stream, _("\
+  --agbasm-local-labels   enable agbasm local labels.\n"));
+    fprintf(stream, _("\
+  --agbasm-help           display detailed documentation on agbasm features and exit\n"));
     fprintf(stream, _("\
   --alternate             initially turn on alternate macro syntax\n"));
     fprintf(stream, _("\
@@ -340,8 +393,11 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_NO_PAD_SECTIONS, /* = STD_BASE + 40 */
         OPTION_AGBASM,
         OPTION_AGBASM_DEBUG,
+        OPTION_AGBASM_HELP,
         OPTION_AGBASM_LOCAL_LABELS,
-        OPTION_AGBASM_COLONLESS_LABELS
+        OPTION_AGBASM_COLONLESS_LABELS,
+        OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS,
+        
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
     };
@@ -359,7 +415,9 @@ static void parse_args(int * pargc, char *** pargv)
         , { "agbasm", no_argument, NULL, OPTION_AGBASM}
         , { "agbasm-local-labels", no_argument, NULL, OPTION_AGBASM_LOCAL_LABELS}
         , { "agbasm-colonless-labels", no_argument, NULL, OPTION_AGBASM_COLONLESS_LABELS}
-        , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}        
+        , { "agbasm-help", no_argument, NULL, OPTION_AGBASM_HELP}
+        , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}
+        , { "agbasm-colon-defined-global-labels", no_argument, NULL, OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS}
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
         , { "al", optional_argument, NULL, OPTION_AL }
@@ -559,7 +617,7 @@ This program has absolutely no warranty.\n"));
             break;
 
         case OPTION_AGBASM:
-            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS);
+            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS);
             break;
 
         case OPTION_AGBASM_DEBUG:
@@ -574,6 +632,14 @@ This program has absolutely no warranty.\n"));
 
         case OPTION_AGBASM_COLONLESS_LABELS:
             flag_agbasm |= AGBASM_COLONLESS_LABELS;
+            break;
+
+        case OPTION_AGBASM_HELP:
+            show_agbasm_help(stdout);
+            exit(EXIT_SUCCESS);
+
+        case OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS:
+            flag_agbasm |= AGBASM_COLON_DEFINED_GLOBAL_LABELS;
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:
