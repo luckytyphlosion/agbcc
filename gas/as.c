@@ -168,6 +168,12 @@ static void show_agbasm_help(FILE * stream)
                         arg_2=BAR\n\
                     %c\n\
                     \n\
+                    In a multiline macro, the equal sign used in assigning\n\
+                    keyword arguments can substituted with a colon (`:'). Note\n\
+                    that there cannot be whitespace before the colon, but\n\
+                    there can be whitespace after the colon (this behavior also\n\
+                    exists in unmodified gas with the equal sign).\n\
+                    \n\
                     The opening character (`%c') must be defined before any\n\
                     macro arguments are specified. Arguments can be defined\n\
                     on the same line as the opening character with optional\n\

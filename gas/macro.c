@@ -1003,7 +1003,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                 && !ISSEP(in->ptr[scan])
                 && !(macro_mri && in->ptr[scan] == '\'')
                 && (!macro_alternate && in->ptr[scan] != '=')
-                && !(is_agbasm_multiline_macro && in->ptr[scan] == AGBASM_MULTILINE_MACRO_CLOSING)) {
+                && !(is_agbasm_multiline_macro && (in->ptr[scan] == AGBASM_MULTILINE_MACRO_CLOSING || in->ptr[scan] == ':'))) {
                 scan++;
             }
             if (is_agbasm_multiline_macro) {
@@ -1036,7 +1036,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                     num_missing_end_of_line_comma_separator_warnings++;
                 }
             }
-            if (scan < in->len && !macro_alternate && in->ptr[scan] == '=') {
+            if (scan < in->len && !macro_alternate && (in->ptr[scan] == '=' || (is_agbasm_multiline_macro && in->ptr[scan] == ':'))) {
                 is_keyword = 1;
     
                 /* It's OK to go from positional to keyword.  */
@@ -1045,7 +1045,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                 then the actual stuff.  */
                 sb_reset(&t);
                 idx = get_token(idx, in, &t);
-                if (in->ptr[idx] != '=') {
+                if (in->ptr[idx] != '=' && (is_agbasm_multiline_macro && in->ptr[scan] != ':')) {
                     err = _("confusion in formal parameters");
                     break;
                 }
