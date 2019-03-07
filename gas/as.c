@@ -156,6 +156,18 @@ static void show_agbasm_help(FILE * stream)
                           Note that agbasm local labels are NOT local symbols by\n\
                           default.\n"), AGBASM_LOCAL_LABEL_PREFIX);
     fprintf(stream, _("\
+  --agbasm-multiline-macros\n\
+                          enable agbasm multiline macros. This allows the use of\n\
+                          a macro to span across multiple lines, by placing a `%c'\n\
+                          after the macro name, and then placing a `%c' once all\n\
+                          macro arguments have been defined. e.g.\n\
+                          my_macro `%c' \n\
+                              param_1=FOO\n\
+                              param_2=BAR\n\
+                          `%c'\n\
+                          The opening character (`%c') must be defined before any\n\
+                          macro arguments are specified.\n"), AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING);
+    fprintf(stream, _("\
   --agbasm-help           show this message and exit\n"));
     fputc('\n', stream);
 
@@ -194,6 +206,9 @@ Options:\n\
                           enable agbasm colon defined global labels.\n"));
     fprintf(stream, _("\
   --agbasm-local-labels   enable agbasm local labels.\n"));
+    fprintf(stream, _("\
+  --agbasm-multiline-macros\n\
+                          enable agbasm multiline macros.\n"));
     fprintf(stream, _("\
   --agbasm-help           display detailed documentation on agbasm features and exit\n"));
     fprintf(stream, _("\
@@ -397,7 +412,8 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_AGBASM_LOCAL_LABELS,
         OPTION_AGBASM_COLONLESS_LABELS,
         OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS,
-        
+        OPTION_AGBASM_MULTILINE_MACROS
+
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
     };
@@ -418,6 +434,7 @@ static void parse_args(int * pargc, char *** pargv)
         , { "agbasm-help", no_argument, NULL, OPTION_AGBASM_HELP}
         , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}
         , { "agbasm-colon-defined-global-labels", no_argument, NULL, OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS}
+        , { "agbasm-multiline-macros", no_argument, NULL, OPTION_AGBASM_MULTILINE_MACROS}
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
         , { "al", optional_argument, NULL, OPTION_AL }
@@ -617,7 +634,7 @@ This program has absolutely no warranty.\n"));
             break;
 
         case OPTION_AGBASM:
-            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS);
+            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS | AGBASM_MULTILINE_MACROS);
             break;
 
         case OPTION_AGBASM_DEBUG:
@@ -640,6 +657,10 @@ This program has absolutely no warranty.\n"));
 
         case OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS:
             flag_agbasm |= AGBASM_COLON_DEFINED_GLOBAL_LABELS;
+            break;
+
+        case OPTION_AGBASM_MULTILINE_MACROS:
+            flag_agbasm |= AGBASM_MULTILINE_MACROS;
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:

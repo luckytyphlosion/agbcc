@@ -245,7 +245,7 @@ static void s_reloc(int);
 static int hex_float(int, char *);
 static segT get_known_segmented_expression(expressionS * expP);
 static void pobegin(void);
-static size_t get_non_macro_line_sb(sb *);
+size_t get_non_macro_line_sb(sb *line);
 static char *_find_end_of_line(char *, int, int, int);
 
 void read_begin(void)
@@ -591,7 +591,16 @@ static int try_macro(char term, const char *line)
         if (err != NULL) {
             as_bad("%s", err);
         }
-        *input_line_pointer++ = term;
+        if (!(flag_agbasm & AGBASM_MULTILINE_MACROS)) {
+            *input_line_pointer++ = term;
+        } else {
+            input_line_pointer++;
+        }
+        /*{
+            unsigned int line;
+            const char * input_file_name = as_where(&line);
+            agbasm_debug_write("%s:%u: *input_line_pointer in try_macro after term restoration: %c", input_file_name, line, *input_line_pointer);
+        }*/
         input_scrub_include_sb(&out,
                                input_line_pointer, 1);
         sb_kill(&out);
@@ -1120,7 +1129,9 @@ try_not_colonless_label:
                             (void)restore_line_pointer(nul_char);
                             s_ignore(0);
                             nul_char = next_char = *--input_line_pointer;
-                            *input_line_pointer = '\0';
+                            if (!(flag_agbasm & AGBASM_MULTILINE_MACROS)) {
+                                *input_line_pointer = '\0';
+                            }
                             if (!macro_defined || !try_macro(next_char, s)) {
                                 *end = '\0';
                                 as_bad(_("unknown pseudo-op: `%s'"), s);
@@ -1153,13 +1164,22 @@ try_not_colonless_label:
                         (void)restore_line_pointer(nul_char);
                         input_line_pointer = _find_end_of_line(input_line_pointer, flag_m68k_mri, 1, 0);
                         next_char = nul_char = *input_line_pointer;
-                        *input_line_pointer = '\0';
+                        /* This doesn't seem to be necessary because
+                           check_macro (called from try_macro) also checks
+                           for a newline as the terminator for macro arguments.
+                           It's kept just in case there is behaviour that
+                           relies on this being a null character. */
+                        if (!(flag_agbasm & AGBASM_MULTILINE_MACROS)) {
+                            *input_line_pointer = '\0';
+                        }
 
                         generate_lineno_debug();
 
                         if (macro_defined && try_macro(next_char, s)) {
                             continue;
                         }
+
+                        *input_line_pointer = '\0';
 
                         if (mri_pending_align) {
                             do_align(1, (char*)NULL, 0, 0);
@@ -2557,7 +2577,7 @@ static int get_line_sb(sb *line, int in_macro)
     return *input_line_pointer++;
 }
 
-static size_t get_non_macro_line_sb(sb *line)
+size_t get_non_macro_line_sb(sb *line)
 {
     return get_line_sb(line, 0);
 }

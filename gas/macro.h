@@ -91,4 +91,7 @@ extern int check_macro(const char *, sb *, const char **, macro_entry **);
 extern void delete_macro(const char *);
 extern const char *expand_irp(int, size_t, sb *, sb *, size_t (*)(sb *));
 
+#define AGBASM_MULTILINE_MACRO_OPENING '['
+#define AGBASM_MULTILINE_MACRO_CLOSING ']'
+
 #endif
