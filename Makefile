@@ -320,7 +320,7 @@ gas-time:
 	@echo $@: `date +%s.%N` > gas-time.log
 
 gas-configure:
-	@printf "Making gas";
+	@printf "Making gas\n";
 	@if [ ! -f gas/Makefile ]; then                     \
 	    echo "Configuring in gas...";                   \
 	    cd gas && $(CONFIGURE);                         \
@@ -337,7 +337,6 @@ gas-install: gas-all
 	@$(MAKE) -C gas install prefix=$(abspath $(prefix))/tools/binutils $(SUBSUBMAKEFLAGS)
 gas-install-strip: gas-all
 	@$(MAKE) -C gas install-strip prefix=$(abspath $(prefix))/tools/binutils $(SUBSUBMAKEFLAGS)
-	@printf "Done gas-install-strip\n\n\n";
 
 bfd-configure:
 	@echo "Making bfd";

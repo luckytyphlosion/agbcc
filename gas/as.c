@@ -123,52 +123,92 @@ void print_version_id(void)
 
 static void show_agbasm_help(FILE * stream)
 {
-    fprintf(stream, _("\
-  --agbasm                enable all agbasm features except --agbasm-debug\n"));
-    fprintf(stream, _("\
-  --agbasm-debug FILE     enable agbasm debug info. Outputs miscellaneous debugging print\n\
-                          statements to the specified file.\n"));
-    fprintf(stream, _("\
+    fprintf(stream, _("\n\
+  --agbasm          enable all agbasm features except --agbasm-debug\n"));
+    fprintf(stream, _("\n\
+  --agbasm-debug FILE\n\
+                    enable agbasm debug info. Outputs miscellaneous debugging print\n\
+                    statements to the specified file. (\"printf debugging\")\n"));
+    fprintf(stream, _("\n\
   --agbasm-colonless-labels\n\
-                          enable agbasm colonless labels. This allows defining labels\n\
-                          without a colon at the end if the label is in column\n\
-                          zero and ends with a newline (after optional whitespace).\n\
-                          If the label does not end with a newline, then an error is\n\
-                          thrown and the label is assumed to be a statement.\n"));
-    fprintf(stream, _("\
+                    enable agbasm colonless labels. This allows defining labels\n\
+                    without a colon at the end if the label is in column\n\
+                    zero and ends with a newline (after optional whitespace).\n\
+                    If the label does not end with a newline, then an error is\n\
+                    thrown and the label is assumed to be a statement.\n"));
+    fprintf(stream, _("\n\
   --agbasm-colon-defined-global-labels\n\
-                          enable agbasm colon defined global labels. This allows setting\n\
-                          a label as global on definition by following the label name\n\
-                          with two colons, as opposed to one (e.g. `label::').\n"));
-    fprintf(stream, _("\
+                    enable agbasm colon defined global labels. This allows setting\n\
+                    a label as global on definition by following the label name\n\
+                    with two colons, as opposed to one (e.g. `label::').\n"));
+    fprintf(stream, _("\n\
   --agbasm-local-labels\n\
-                          enable agbasm local labels. These are like dollar local\n\
-                          labels (as in they go out of scope when a non-local label\n\
-                          is defined), but are not limited to a number as the label\n\
-                          name. An agbasm local label is prefixed (and thus defined)\n\
-                          with `%c'. Internally, an agbasm local label is actually\n\
-                          just a concatenation of the most recently defined\n\
-                          non-local label and the local label (including the prefix).\n\
-                          This gives us a safe way to canonicalize local label names\n\
-                          so that they can be exported for debug information. This\n\
-                          also means that local labels can be referenced outside\n\
-                          of their scope by using the canonicalized label name.\n\
-                          Note that agbasm local labels are NOT local symbols by\n\
-                          default.\n"), AGBASM_LOCAL_LABEL_PREFIX);
-    fprintf(stream, _("\
+                    enable agbasm local labels. These are like dollar local\n\
+                    labels (as in they go out of scope when a non-local label\n\
+                    is defined), but are not limited to a number as the label\n\
+                    name. An agbasm local label is prefixed (and thus defined)\n\
+                    with `%c'. Internally, an agbasm local label is actually\n\
+                    just a concatenation of the most recently defined\n\
+                    non-local label and the local label (including the prefix).\n\
+                    This gives us a safe way to canonicalize local label names\n\
+                    so that they can be exported for debug information. This\n\
+                    also means that local labels can be referenced outside\n\
+                    of their scope by using the canonicalized label name.\n\
+                    Note that agbasm local labels are NOT local symbols by\n\
+                    default.\n"), AGBASM_LOCAL_LABEL_PREFIX);
+    fprintf(stream, _("\n\
   --agbasm-multiline-macros\n\
-                          enable agbasm multiline macros. This allows the use of\n\
-                          a macro to span across multiple lines, by placing a `%c'\n\
-                          after the macro name, and then placing a `%c' once all\n\
-                          macro arguments have been defined. e.g.\n\
-                          my_macro `%c' \n\
-                              param_1=FOO\n\
-                              param_2=BAR\n\
-                          `%c'\n\
-                          The opening character (`%c') must be defined before any\n\
-                          macro arguments are specified.\n"), AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING);
-    fprintf(stream, _("\
-  --agbasm-help           show this message and exit\n"));
+                    enable agbasm multiline macros. This allows the use of\n\
+                    a macro to span across multiple lines, by placing a `%c'\n\
+                    after the macro name, and then placing a `%c' once all\n\
+                    macro arguments have been defined, e.g.\n\
+                    \n\
+                    my_macro %c\n\
+                        arg_1=FOO,\n\
+                        arg_2=BAR\n\
+                    %c\n\
+                    \n\
+                    The opening character (`%c') must be defined before any\n\
+                    macro arguments are specified. Arguments can be defined\n\
+                    on the same line as the opening character with optional\n\
+                    whitespace in-between the opening character and the starting\n\
+                    argument, e.g.:\n\
+                    \n\
+                    my_macro %carg_1=FOO,\n\
+                      arg_2=BAR\n\
+                    %c\n\
+                    \n\
+                    The closing character (`%c') can be defined in one of\n\
+                    two ways:\n\
+                    - After the last argument, a comma is placed (to indicate\n\
+                      the end of the argument), followed by optional whitespace\n\
+                      and then the closing character, e.g.:\n\
+                      \n\
+                      my_macro %c\n\
+                          FOO, %c\n\
+                      \n\
+                    - On a single line by itself (supposedly after the last\n\
+                      argument has been defined) with no non-whitespace characters\n\
+                      before or after it, e.g.:\n\
+                      \n\
+                      my_macro %c\n\
+                          FOO\n\
+                      %c\n\
+                      \n\
+                    Note that the first method **requires** a comma before the\n\
+                    closing character, while the second method does not require\n\
+                    the closing character. This is due to the inherent design\n\
+                    of how macro arguments are parsed, which may be explained\n\
+                    here in the future.\n\
+                    \n\
+                    A comma should be inserted after the last argument for each\n\
+                    line (except as mentioned above in the second closing character\n\
+                    method), otherwise a warning is generated. It is\n\
+                    recommended to not ignore these warnings as they can\n\
+                    be an indicator of a missing closing character, as most\n\
+                    directives do not end with a comma.\n"), AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING);
+    fprintf(stream, _("\n\
+  --agbasm-help     show this message and exit\n"));
     fputc('\n', stream);
 
     /*if (REPORT_BUGS_TO[0] && stream == stdout) {

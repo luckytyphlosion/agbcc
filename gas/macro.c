@@ -1012,7 +1012,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                     /* demand empty rest of line
                        but this has to be unique code
                        because input_line_pointer already points to the start of the next line */
-                    agbasm_debug_write("after agbasm multiline macro closing: %c (scan: %u, len: %u)", in->ptr[scan], scan, in->len);
+                    //agbasm_debug_write("after agbasm multiline macro closing: %c (scan: %u, len: %u)", in->ptr[scan], scan, in->len);
                     scan++;
                     scan = sb_skip_white(scan, in);
                     if (scan < in->len) {
