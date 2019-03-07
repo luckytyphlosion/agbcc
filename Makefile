@@ -1,4 +1,4 @@
-CFLAGS ?= -O0 -std=gnu11
+CFLAGS ?= -O2 -std=gnu11
 
 # Simulate autotools by hacking recursive submake
 ifeq (,$(shell which aclocal-1.16 2>/dev/null || true))

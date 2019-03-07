@@ -42,6 +42,9 @@
      || (x) == 'h' || (x) == 'H' \
      || (x) == 'd' || (x) == 'D')
 
+// for agbasm multiline macros
+extern size_t get_non_macro_line_sb(sb *line);
+
 /* The macro hash table.  */
 
 struct hash_control *macro_hash;
@@ -347,6 +350,7 @@ static size_t get_any_string(size_t idx, sb *in, sb *out)
     idx = sb_skip_white(idx, in);
 
     if (idx < in->len) {
+        /* ????? */
         if (in->len > idx + 2 && in->ptr[idx + 1] == '\'' && ISBASE(in->ptr[idx])) {
             while (!ISSEP(in->ptr[idx])) {
                 sb_add_char(out, in->ptr[idx++]);
@@ -941,7 +945,7 @@ static const char *macro_expand_body(sb *in, sb *out, formal_entry *formals,
 /* Assign values to the formal parameters of a macro, and expand the
    body.  */
 
-static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out)
+static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int is_agbasm_multiline_macro)
 {
     sb t;
     formal_entry *ptr;
@@ -949,6 +953,9 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out)
     int is_keyword = 0;
     int narg = 0;
     const char *err = NULL;
+    int done_agbasm_multiline_macro = FALSE;
+    int comma_exists = TRUE;
+    int num_missing_end_of_line_comma_separator_warnings = 0;
 
     sb_new(&t);
 
@@ -984,106 +991,151 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out)
     }
 
     /* Peel off the actuals and store them away in the hash tables' actuals.  */
-    idx = sb_skip_white(idx, in);
-    while (idx < in->len) {
-        size_t scan;
-
-        /* Look and see if it's a positional or keyword arg.  */
-        scan = idx;
-        while (scan < in->len
-               && !ISSEP(in->ptr[scan])
-               && !(macro_mri && in->ptr[scan] == '\'')
-               && (!macro_alternate && in->ptr[scan] != '=')) {
-            scan++;
-        }
-        if (scan < in->len && !macro_alternate && in->ptr[scan] == '=') {
-            is_keyword = 1;
-
-            /* It's OK to go from positional to keyword.  */
-
-            /* This is a keyword arg, fetch the formal name and
-               then the actual stuff.  */
-            sb_reset(&t);
-            idx = get_token(idx, in, &t);
-            if (in->ptr[idx] != '=') {
-                err = _("confusion in formal parameters");
-                break;
+    while (TRUE) {
+        idx = sb_skip_white(idx, in);
+        
+        while (idx < in->len) {
+            size_t scan;
+    
+            /* Look and see if it's a positional or keyword arg.  */
+            scan = idx;
+            while (scan < in->len
+                && !ISSEP(in->ptr[scan])
+                && !(macro_mri && in->ptr[scan] == '\'')
+                && (!macro_alternate && in->ptr[scan] != '=')
+                && !(is_agbasm_multiline_macro && in->ptr[scan] == AGBASM_MULTILINE_MACRO_CLOSING)) {
+                scan++;
             }
-
-            /* Lookup the formal in the macro's list.  */
-            ptr = (formal_entry*)hash_find(m->formal_hash, sb_terminate(&t));
-            if (!ptr) {
-                as_bad(_("Parameter named `%s' does not exist for macro `%s'"),
-                       t.ptr,
-                       m->name);
+            if (is_agbasm_multiline_macro) {
+                if (in->ptr[scan] == AGBASM_MULTILINE_MACRO_CLOSING) {
+                    done_agbasm_multiline_macro = TRUE;
+                    /* demand empty rest of line
+                       but this has to be unique code
+                       because input_line_pointer already points to the start of the next line */
+                    agbasm_debug_write("after agbasm multiline macro closing: %c (scan: %u, len: %u)", in->ptr[scan], scan, in->len);
+                    scan++;
+                    scan = sb_skip_white(scan, in);
+                    if (scan < in->len) {
+                        if (ISPRINT(in->ptr[scan])) {
+                            as_bad(_("junk at end of line after agbasm multiline macro closing, first unrecognized character is `%c'"), in->ptr[scan]);
+                        } else {
+                            as_bad(_("junk at end of line after agbasm multiline macro closing, first unrecognized character valued 0x%x"), in->ptr[scan]);
+                        }
+                    }
+                    break;
+                /* this is set at the end of the loop when consuming
+                   the comma separator to the next argument */
+                } else if (!comma_exists && num_missing_end_of_line_comma_separator_warnings <= 5) {
+                    unsigned int line;
+                    const char * input_file_name = as_where(&line);
+                    if (num_missing_end_of_line_comma_separator_warnings == 5) {
+                        as_warn_where(input_file_name, line - 1, _("Missing end of line comma separator for unfinished agbasm multiline macro statement `%s' (subsequent warnings suppressed)"), m->name);
+                    } else {
+                        as_warn_where(input_file_name, line - 1, _("Missing end of line comma separator for unfinished agbasm multiline macro statement `%s'"), m->name);
+                    }
+                    num_missing_end_of_line_comma_separator_warnings++;
+                }
+            }
+            if (scan < in->len && !macro_alternate && in->ptr[scan] == '=') {
+                is_keyword = 1;
+    
+                /* It's OK to go from positional to keyword.  */
+    
+                /* This is a keyword arg, fetch the formal name and
+                then the actual stuff.  */
                 sb_reset(&t);
-                idx = get_any_string(idx + 1, in, &t);
-            } else {
-                /* Insert this value into the right place.  */
-                if (ptr->actual.len) {
-                    as_warn(_("Value for parameter `%s' of macro `%s' was already specified"),
-                            ptr->name.ptr,
-                            m->name);
-                    sb_reset(&ptr->actual);
-                }
-                idx = get_any_string(idx + 1, in, &ptr->actual);
-                if (ptr->actual.len > 0) {
-                    ++narg;
-                }
-            }
-        } else {
-            if (is_keyword) {
-                err = _("can't mix positional and keyword arguments");
-                break;
-            }
-
-            if (!f) {
-                formal_entry **pf;
-                int c;
-
-                if (!macro_mri) {
-                    err = _("too many positional arguments");
+                idx = get_token(idx, in, &t);
+                if (in->ptr[idx] != '=') {
+                    err = _("confusion in formal parameters");
                     break;
                 }
-
-                f = new_formal();
-
-                c = -1;
-                for (pf = &m->formals; *pf != NULL; pf = &(*pf)->next) {
-                    if ((*pf)->index >= c) {
-                        c = (*pf)->index + 1;
+    
+                /* Lookup the formal in the macro's list.  */
+                ptr = (formal_entry*)hash_find(m->formal_hash, sb_terminate(&t));
+                if (!ptr) {
+                    as_bad(_("Parameter named `%s' does not exist for macro `%s'"),
+                        t.ptr,
+                        m->name);
+                    sb_reset(&t);
+                    idx = get_any_string(idx + 1, in, &t);
+                } else {
+                    /* Insert this value into the right place.  */
+                    if (ptr->actual.len) {
+                        as_warn(_("Value for parameter `%s' of macro `%s' was already specified"),
+                                ptr->name.ptr,
+                                m->name);
+                        sb_reset(&ptr->actual);
+                    }
+                    idx = get_any_string(idx + 1, in, &ptr->actual);
+                    if (ptr->actual.len > 0) {
+                        ++narg;
                     }
                 }
-                if (c == -1) {
-                    c = 0;
-                }
-                *pf = f;
-                f->index = c;
-            }
-
-            if (f->type != FORMAL_VARARG) {
-                idx = get_any_string(idx, in, &f->actual);
             } else {
-                sb_add_buffer(&f->actual, in->ptr + idx, in->len - idx);
-                idx = in->len;
+                if (is_keyword) {
+                    err = _("can't mix positional and keyword arguments");
+                    break;
+                }
+    
+                if (!f) {
+                    formal_entry **pf;
+                    int c;
+    
+                    if (!macro_mri) {
+                        err = _("too many positional arguments");
+                        break;
+                    }
+    
+                    f = new_formal();
+    
+                    c = -1;
+                    for (pf = &m->formals; *pf != NULL; pf = &(*pf)->next) {
+                        if ((*pf)->index >= c) {
+                            c = (*pf)->index + 1;
+                        }
+                    }
+                    if (c == -1) {
+                        c = 0;
+                    }
+                    *pf = f;
+                    f->index = c;
+                }
+    
+                if (f->type != FORMAL_VARARG) {
+                    idx = get_any_string(idx, in, &f->actual);
+                } else {
+                    sb_add_buffer(&f->actual, in->ptr + idx, in->len - idx);
+                    idx = in->len;
+                }
+                if (f->actual.len > 0) {
+                    ++narg;
+                }
+                do {
+                    f = f->next;
+                } while (f != NULL && f->index < 0);
             }
-            if (f->actual.len > 0) {
-                ++narg;
+    
+            if (!macro_mri) {
+                idx = sb_check_and_skip_comma(idx, in, &comma_exists);
+            } else {
+                if (in->ptr[idx] == ',') {
+                    ++idx;
+                }
+                if (ISWHITE(in->ptr[idx])) {
+                    break;
+                }
             }
-            do {
-                f = f->next;
-            } while (f != NULL && f->index < 0);
         }
 
-        if (!macro_mri) {
-            idx = sb_skip_comma(idx, in);
+        if (!is_agbasm_multiline_macro || done_agbasm_multiline_macro) {
+            break;
         } else {
-            if (in->ptr[idx] == ',') {
-                ++idx;
-            }
-            if (ISWHITE(in->ptr[idx])) {
+            sb_reset(in);
+            if (!get_non_macro_line_sb(in)) {
+                as_bad(_("Unexpected end of file in argument expansion of macro `%s'"), m->name);
                 break;
             }
+            idx = 0;
         }
     }
 
@@ -1143,6 +1195,7 @@ int check_macro(const char *line, sb *expand,
     char *copy, *cls;
     macro_entry *macro;
     sb line_sb;
+    int is_agbasm_multiline_macro = FALSE;
 
     if (!is_name_beginner(*line)
         && (!macro_mri || *line != '.')) {
@@ -1171,12 +1224,25 @@ int check_macro(const char *line, sb *expand,
 
     /* Wrap the line up in an sb.  */
     sb_new(&line_sb);
+    
+    /* check if this is an agbasm multiline macro */
+    if (flag_agbasm & AGBASM_MULTILINE_MACROS) {
+        /* skip any whitespace
+           I'm not sure if I can skip adding it to the buffer */
+        while (ISWHITE(*s)) {
+            sb_add_char(&line_sb, *s++);
+        }
+        if (*s == AGBASM_MULTILINE_MACRO_OPENING) {
+            is_agbasm_multiline_macro = TRUE;
+            s++;
+        }
+    }
     while (*s != '\0' && *s != '\n' && *s != '\r') {
         sb_add_char(&line_sb, *s++);
     }
 
     sb_new(expand);
-    *error = macro_expand(0, &line_sb, macro, expand);
+    *error = macro_expand(0, &line_sb, macro, expand, is_agbasm_multiline_macro);
 
     sb_kill(&line_sb);
 

@@ -205,6 +205,14 @@ size_t sb_skip_white(size_t idx, sb *ptr)
 
 size_t sb_skip_comma(size_t idx, sb *ptr)
 {
+    int dummy_ptr;
+    return sb_check_and_skip_comma(idx, ptr, &dummy_ptr);
+}
+
+size_t sb_check_and_skip_comma(size_t idx, sb *ptr, int * comma_exists)
+{
+    *comma_exists = FALSE;
+
     while (idx < ptr->len
            && (ptr->ptr[idx] == ' '
                || ptr->ptr[idx] == '\t')) {
@@ -213,6 +221,7 @@ size_t sb_skip_comma(size_t idx, sb *ptr)
 
     if (idx < ptr->len
         && ptr->ptr[idx] == ',') {
+        *comma_exists = TRUE;
         idx++;
     }
 

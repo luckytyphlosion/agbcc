@@ -62,7 +62,7 @@ extern void sb_add_buffer(sb *, const char *, size_t);
 extern char *sb_terminate(sb *);
 extern size_t sb_skip_white(size_t, sb *);
 extern size_t sb_skip_comma(size_t, sb *);
-
+extern size_t sb_check_and_skip_comma(size_t, sb *, int *);
 /* Actually in input-scrub.c.  */
 extern void input_scrub_include_sb(sb *, char *, int);
 
