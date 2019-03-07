@@ -944,11 +944,12 @@ static void fixup_segment(fixS *fixP, segT this_segment)
                                  _("register value used as expression"));
                 } else {
                     as_bad_where(fixP->fx_file, fixP->fx_line,
-                                 _("can't resolve `%s' {%s section} - `%s' {%s section}"),
+                                 _("can't resolve `%s' {%s section} - `%s' {%s section} (fx_r_type: %d)"),
                                  fixP->fx_addsy ? S_GET_NAME(fixP->fx_addsy) : "0",
                                  segment_name(add_symbol_segment),
                                  S_GET_NAME(fixP->fx_subsy),
-                                 segment_name(sub_symbol_segment));
+                                 segment_name(sub_symbol_segment),
+                                 fixP->fx_r_type);
                 }
             } else if (sub_symbol_segment != undefined_section
                        && !bfd_is_com_section(sub_symbol_segment)

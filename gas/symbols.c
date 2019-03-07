@@ -72,7 +72,7 @@ static long fb_label_instance(long);
 
 static void print_binary(FILE *, const char *, expressionS *);
 
-static int is_not_reserved_section_name(const char *);
+static int is_not_reserved_section_name_or_startsizeof(const char *);
 static void find_undefined_agbasm_local_labels_then_clear(symbolS *);
 // static void add_agbasm_local_label_to_scope(symbolS *);
 
@@ -130,9 +130,14 @@ static const char *save_symbol_name(const char *name)
     return ret;
 }
 
-static int is_not_reserved_section_name(const char * name)
+static int is_not_reserved_section_name_or_startsizeof(const char * name)
 {
-    return strcmp(TEXT_SECTION_NAME, name) && strcmp(BSS_SECTION_NAME, name) &&strcmp(DATA_SECTION_NAME, name) && strcmp(".rodata", name);
+    return strcasecmp(TEXT_SECTION_NAME, name)
+        && strcasecmp(BSS_SECTION_NAME, name)
+        && strcasecmp(DATA_SECTION_NAME, name)
+        && strcasecmp(".rodata", name)
+        && strncasecmp(".startof.", name, 9)
+        && strncasecmp(".sizeof.", name, 8);
 }
 
 symbolS *symbol_create(const char *name,  /* It is copied, the caller can destroy/modify.  */
@@ -144,7 +149,7 @@ symbolS *symbol_create(const char *name,  /* It is copied, the caller can destro
     symbolS *symbolP;
     int is_agbasm_local_label = FALSE;
 
-    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name_or_startsizeof(name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
         }
@@ -342,7 +347,7 @@ symbolS *colon( /* Just seen "x:" - rattle symbols & frags.  */
 #ifdef obj_frob_colon
     obj_frob_colon(sym_name);
 #endif
-    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && sym_name[0] == AGBASM_LOCAL_LABEL_PREFIX /*'.'*/ && is_not_reserved_section_name(sym_name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && sym_name[0] == AGBASM_LOCAL_LABEL_PREFIX /*'.'*/ && is_not_reserved_section_name_or_startsizeof(sym_name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label"), sym_name);
         }
@@ -731,7 +736,7 @@ symbolS *symbol_find_exact_noref(const char *name, int noref)
     symbolS* sym;
     int agbasm_local_label = FALSE;
 
-    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name(name)) {
+    if ((flag_agbasm & AGBASM_LOCAL_LABELS) && name[0] == AGBASM_LOCAL_LABEL_PREFIX && is_not_reserved_section_name_or_startsizeof(name)) {
         if (!current_agbasm_nonlocal_label) {
             as_fatal(_("Local label %s defined before non-local label in func %s"), name, __PRETTY_FUNCTION__);
         }
