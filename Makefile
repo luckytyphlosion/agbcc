@@ -58,11 +58,13 @@ else
 EXE :=
 endif
 
-all: binutils old_gcc gcc libc libgcc libagb_flash libagbsyscall libgcnmultiboot libisagbprn librfu libm4a libsiirtc
+all: binutils old_gcc gcc libc libgcc
+
+core-sdk: binutils old_gcc gcc libc libgcc libagb_flash libagbsyscall libgcnmultiboot libisagbprn librfu libm4a libsiirtc
 
 binutils: $(BINUTILS_TGTS)
 
-install: install-prefix-check binutils old_gcc gcc libc libgcc libagb_flash libagbsyscall libgcnmultiboot libisagbprn librfu libm4a libsiirtc $(BINUTILS_INSTALL_STRIP)
+install: install-prefix-check binutils old_gcc gcc libc libgcc $(BINUTILS_INSTALL_STRIP)
 	@mkdir -p $(prefix)/tools/agbcc
 	@mkdir -p $(prefix)/tools/agbcc/bin
 	@mkdir -p $(prefix)/tools/agbcc/include
@@ -72,15 +74,18 @@ install: install-prefix-check binutils old_gcc gcc libc libgcc libagb_flash liba
 	@mkdir -p $(prefix)/tools/binutils/lib
 	cp agbcc $(prefix)/tools/agbcc/bin/
 	cp old_agbcc $(prefix)/tools/agbcc/bin/
-	cp -R libc/include $(prefix)/tools/agbcc/ #drop include, because we don't want include/include
+	@# drop include, because we don't want include/include
+	cp -R libc/include $(prefix)/tools/agbcc/
 	cp -R ginclude/* $(prefix)/tools/agbcc/include/
+	cp libgcc.a $(prefix)/tools/agbcc/lib/
+	cp libc.a $(prefix)/tools/agbcc/lib/
+
+install-sdk: install libagb_flash libagbsyscall libgcnmultiboot libisagbprn librfu libm4a libsiirtc
 	cp agb_flash/agb_flash.h $(prefix)/tools/agbcc/include/
 	cp librfu/librfu.h $(prefix)/tools/agbcc/include/
 	cp libgcnmultiboot/libgcnmultiboot.h $(prefix)/tools/agbcc/include/
 	cp m4a/m4a.h $(prefix)/tools/agbcc/include/
 	cp siirtc/siirtc.h $(prefix)/tools/agbcc/include/
-	cp libgcc.a $(prefix)/tools/agbcc/lib/
-	cp libc.a $(prefix)/tools/agbcc/lib/
 	cp libagb_flash.a $(prefix)/tools/agbcc/lib/
 	cp libagbsyscall.a $(prefix)/tools/agbcc/lib/
 	cp libgcnmultiboot.a $(prefix)/tools/agbcc/lib/
