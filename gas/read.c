@@ -158,6 +158,9 @@ char original_case_string[128];
 static char *buffer;    /* 1st char of each buffer of lines is here.  */
 static char *buffer_limit;      /*->1 + last char in buffer.  */
 
+/* top charmap struct */
+static charmapS * top_level_charmap = NULL;
+
 /* TARGET_BYTES_BIG_ENDIAN is required to be defined to either 0 or 1
    in the tc-<CPU>.h file.  See the "Porting GAS" section of the
    internals manual.  */
@@ -241,12 +244,14 @@ static void do_s_func(int end_p, const char *default_prefix);
 static void s_align(int, int);
 static void s_altmacro(int);
 static void s_bad_end(int);
+static void s_charmap(int);
 static void s_reloc(int);
 static int hex_float(int, char *);
 static segT get_known_segmented_expression(expressionS * expP);
 static void pobegin(void);
 size_t get_non_macro_line_sb(sb *line);
 static char *_find_end_of_line(char *, int, int, int);
+static void next_char_of_string_common(int);
 
 void read_begin(void)
 {
@@ -309,6 +314,7 @@ static const pseudo_typeS potable[] = {
     { "bundle_unlock", s_bundle_unlock, 0 },
 #endif
     { "byte", cons, 1 },
+    { "charmap", s_charmap, 0 },
     { "comm", s_comm, 0 },
     { "common", s_mri_common, 0 },
     { "common.s", s_mri_common, 1 },
@@ -478,9 +484,10 @@ static const pseudo_typeS potable[] = {
     { NULL, NULL, 0 }               /* End sentinel.  */
 };
 
-static offsetT get_absolute_expr(expressionS *exp)
+static offsetT get_absolute_expr_and_op_type(expressionS * exp, operatorT * op)
 {
     expression_and_evaluate(exp);
+    *op = exp->X_op;
 
     if (exp->X_op != O_constant) {
         if (exp->X_op != O_absent) {
@@ -491,11 +498,24 @@ static offsetT get_absolute_expr(expressionS *exp)
     return exp->X_add_number;
 }
 
+static offsetT get_absolute_expression_and_op_type(operatorT * op)
+{
+    expressionS exp;
+    return get_absolute_expr_and_op_type(&exp, &op);
+}
+
+static offsetT get_absolute_expr(expressionS *exp)
+{
+    operatorT op;
+    return get_absolute_expr_and_op_type(exp, &op);
+}
+
 offsetT get_absolute_expression(void)
 {
     expressionS exp;
+    operatorT op;
 
-    return get_absolute_expr(&exp);
+    return get_absolute_expr_and_op_type(&exp, &op);
 }
 
 static int pop_override_ok = 0;
@@ -3660,13 +3680,13 @@ static void cons_worker(int nbytes,         /* 1=.byte, 2=.word, 4=.long.  */
     c = 0;
     do {
         TC_PARSE_CONS_RETURN_TYPE ret = TC_PARSE_CONS_RETURN_NONE;
-#ifdef TC_CONS_FIX_CHECK
+/*#ifdef TC_CONS_FIX_CHECK
         fixS **cur_fix = &frchain_now->fix_tail;
 
         if (*cur_fix != NULL) {
             cur_fix = &(*cur_fix)->fx_next;
         }
-#endif
+#endif*/
 
         {
             ret = TC_PARSE_CONS_EXPRESSION(&exp, (unsigned int)nbytes);
@@ -3680,9 +3700,9 @@ static void cons_worker(int nbytes,         /* 1=.byte, 2=.word, 4=.long.  */
             }
         }
         emit_expr_with_reloc(&exp, (unsigned int)nbytes, ret);
-#ifdef TC_CONS_FIX_CHECK
+/*#ifdef TC_CONS_FIX_CHECK
         TC_CONS_FIX_CHECK(&exp, nbytes, *cur_fix);
-#endif
+#endif*/
         ++c;
     } while (*input_line_pointer++ == ',');
 
@@ -4782,6 +4802,116 @@ void s_leb128(int sign)
     demand_empty_rest_of_line();
 }
 
+static void s_charmap(int arg ATTRIBUTE_UNUSED)
+{
+    if (!(flag_agbasm & AGBASM_CHARMAP)) {
+        as_bad(_("cannot use .charmap without --agbasm-charmap enabled"));
+        ignore_rest_of_line();
+    } else {
+        unsigned int c;
+        if (top_level_charmap == NULL) {
+            top_level_charmap = calloc(1, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
+            top_level_charmap->has_children = TRUE;
+        }
+        SKIP_WHITESPACE();
+        if (*input_line_pointer != '\"') {
+            as_bad(_("missing string for agbasm charmap"));
+            ignore_rest_of_line();
+        } else {
+            charmapS * cur_charmap = top_level_charmap;
+            int parsed_char = FALSE;
+            input_line_pointer++;
+            while (is_a_char(c = next_char_of_string_common(TRUE))) {
+                int point_range_index, point_range_size, point_range_subindex;
+                
+                if (c & CHAR_CODE_ESCAPE) {
+                    as_bad(_("agbasm charmap input string cannot have escape code, ignoring."));
+                } else {
+                    if (!cur_charmap->has_children) {
+                        cur_charmap = realloc(cur_charmap, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
+                        memset(cur_charmap->point_ranges, 0, sizeof(charmapS *) * NUM_CHAR_POINTS);
+                    }
+                    if (c < CHAR_POINT_0x20) {
+                        /* this should never happen */
+                        if (c == 0) {
+                            abort();
+                        }
+                        point_range_index = POINTS_0x01_TO_0x1f;
+                        point_range_size = POINTS_0x01_TO_0x1f_SIZE;
+                        point_range_subindex = c - 1;
+                    } else {
+                        /* handle entries with 0x10 allocated subarrays */
+                        point_range_index = (c >> 4) - 1;
+                        point_range_size = COMMON_CHAR_POINTS_SIZE;
+                        point_range_subindex = c & 0xf;
+                    }
+
+                    charmapS ** charmap_array_ptr;
+
+                    if (cur_charmap->point_ranges[point_range_index] == NULL) {
+                        cur_charmap->point_ranges[point_range_index] = calloc(point_range_size, sizeof(charmapS *));
+                    }
+                    charmap_array_ptr = cur_charmap->point_ranges[point_range_index];
+
+                    if (charmap_array_ptr[point_range_subindex] == NULL) {
+                        charmap_array_ptr[point_range_subindex] = calloc(1, sizeof(charmapS));
+                    }
+                    cur_charmap = charmap_array_ptr[point_range_subindex];
+                    parsed_char = TRUE;
+                }
+            }
+            /* did we successfully parse an input string? */
+            if (parsed_char) {
+                /* now read the replacement value */
+                if (*input_line_pointer != ",") {
+                    as_bad(_("missing replacement value parameter for agbasm charmap."));
+                    ignore_rest_of_line();
+                } else if (is_it_end_of_statement()) {
+                    as_bad(_("missing replacement value parameter for agbasm charmap."));
+                    demand_empty_rest_of_line();
+                } else {
+                    do {
+                        operatorT op_type;
+                        offsetT replacement_value = get_absolute_expression_and_op_type(&op_type);
+                        SKIP_WHITESPACE();
+                    } while (*input_line_pointer++ == ',');
+                        
+                        
+                        if (op_type == O_absent) {
+                            as_bad(_("missing replacement value parameter for agbasm charmap."));
+                        }
+
+                        cur_charmap->has_value = TRUE;
+                        cur_charmap->value = replacement_value;
+                        
+                        if (*input_line_pointer == ',') {
+                            
+                        } else {
+                            /* extrapolate size of charmap replacement value */
+                            if (replacement_value < 0x100) {
+                                cur_charmap->size = 1;
+                            } else if (replacement_value < 0x10000) {
+                                cur_charmap->size = 2;
+                            } else if (replacement_value < 0x10000
+                        
+                    } else {
+                        val.X_op = O_constant;
+                        val.X_add_number = 0;
+                    }
+    
+                    if ((val.X_op != O_constant
+                        || val.X_add_number < -0x80
+                        || val.X_add_number > 0xff
+                        || (mult != 0 && mult != 1 && val.X_add_number != 0)) {
+                        resolve_expression(&exp);
+                        if (exp.X_op != O_constant) {
+                            as_bad(_("unsupported variable size or fill value"));
+                        }
+        } 
+            } else {
+                as_bad(_("no valid characters were defined for agbasm charmap input string."));
+            }
+
 static void stringer_append_char(int c, int bitsize)
 {
     if (c && in_bss()) {
@@ -4922,12 +5052,17 @@ void stringer(int bits_appendzero)
     demand_empty_rest_of_line();
 }
 
+unsigned int next_char_of_string(void)
+{
+    return next_char_of_string_common(FALSE);
+}
+
 /* FIXME-SOMEDAY: I had trouble here on characters with the
     high bits set.  We'll probably also have trouble with
     multibyte chars, wide chars, etc.  Also be careful about
     returning values bigger than 1 byte.  xoxorich.  */
 
-unsigned int next_char_of_string(void)
+static unsigned int next_char_of_string_common(int keep_literal_representation_of_invalid_escape)
 {
     unsigned int c;
 
@@ -4999,7 +5134,7 @@ unsigned int next_char_of_string(void)
                 number = number * 8 + c - '0';
             }
 
-            c = number & CHAR_MASK;
+            c = (number & CHAR_MASK) | CHAR_CODE_ESCAPE;
         }
             --input_line_pointer;
             break;
@@ -5021,7 +5156,7 @@ unsigned int next_char_of_string(void)
                 }
                 c = *input_line_pointer++;
             }
-            c = number & CHAR_MASK;
+            c = (number & CHAR_MASK) | CHAR_CODE_ESCAPE;
             --input_line_pointer;
         }
         break;
@@ -5044,6 +5179,16 @@ unsigned int next_char_of_string(void)
 #ifdef ONLY_STANDARD_ESCAPES
             as_bad(_("bad escaped character in string"));
             c = '?';
+#else
+            /* keep strings like "\p", "\l" as their literal text
+               for compatibility with a certain source which uses
+               those as substitutions */
+            if (keep_literal_representation_of_invalid_escape) {
+                c = '\\';
+                /* set input line pointer back to the character
+                   which was going to be escaped */
+                --input_line_pointer;
+            }
 #endif /* ONLY_STANDARD_ESCAPES */
 
             break;

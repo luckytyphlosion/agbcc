@@ -61,7 +61,8 @@ extern bfd_boolean input_from_string;
 #ifndef is_a_char
 #define CHAR_MASK       (0xff)
 #define NOT_A_CHAR      (CHAR_MASK + 1)
-#define is_a_char(c)    (((unsigned)(c)) <= CHAR_MASK)
+#define CHAR_CODE_ESCAPE (0x200)
+#define is_a_char(c)    (((unsigned)(c & ~CHAR_CODE_ESCAPE)) <= CHAR_MASK)
 #endif /* is_a_char() */
 
 extern char lex_type[];
@@ -210,3 +211,46 @@ extern void s_xstab(int what);
 extern void s_rva(int);
 extern void s_incbin(int);
 extern void s_weakref(int);
+
+struct charmap_tree {
+    unsigned int values[7];
+    unsigned int size : 3;
+    unsigned int has_children : 1;
+    charmapS ** point_ranges[];
+};
+
+typedef struct charmap_tree charmapS;
+
+#define POINTS_0x01_TO_0x1f_SIZE 0x1f
+#define COMMON_CHAR_POINTS_SIZE 0x10
+#define POINTS_0xc2_TO_0xd2_SIZE 0x11
+#define POINTS_0xd3_TO_0xe2_SIZE 0x10
+#define POINTS_0xe3_TO_0xf4_SIZE 0x12
+
+#define CHAR_POINT_0x20 0x20
+#define CHAR_POINT_0xc0 0xc0
+#define CHAR_POINT_0xc2 0xc2
+#define CHAR_POINT_0xd3 0xd3
+#define CHAR_POINT_0xe3 0xe3
+#define CHAR_POINT_0xf5 0xf5
+
+
+
+enum charmap_point {
+    POINTS_0x01_TO_0x1f, // 0
+    POINTS_0x20_TO_0x2f, // 1
+    POINTS_0x30_TO_0x3f, // 2
+    POINTS_0x40_TO_0x4f, // 3
+    POINTS_0x50_TO_0x5f, // 4
+    POINTS_0x60_TO_0x6f, // 5
+    POINTS_0x70_TO_0x7f, // 6
+    POINTS_0x80_TO_0x8f, // 7
+    POINTS_0x90_TO_0x9f, // 8
+    POINTS_0xa0_TO_0xaf, // 9
+    POINTS_0xb0_TO_0xbf, // 10
+    POINTS_0xc0_TO_0xcf, // 11
+    POINTS_0xd0_TO_0xdf, // 12
+    POINTS_0xe0_TO_0xef, // 13
+    POINTS_0xf0_TO_0xff, // 14
+    NUM_CHARMAP_POINTS   // 15
+};

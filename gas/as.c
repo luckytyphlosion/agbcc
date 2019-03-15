@@ -214,6 +214,9 @@ static void show_agbasm_help(FILE * stream)
                     be an indicator of a missing closing character, as most\n\
                     directives do not end with a comma.\n"), AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING);
     fprintf(stream, _("\n\
+  --agbasm-charmap\n\
+                    enable agbasm charmap.\n"));
+    fprintf(stream, _("\n\
   --agbasm-help     show this message and exit\n"));
     fputc('\n', stream);
 
@@ -244,6 +247,8 @@ Options:\n\
   --agbasm                enable all agbasm features except --agbasm-debug\n"));
     fprintf(stream, _("\
   --agbasm-debug FILE     enable agbasm debug info\n"));
+    fprintf(stream, _("\n\
+  --agbasm-charmap        enable agbasm charmap.\n"));
     fprintf(stream, _("\
   --agbasm-colonless-labels\n\
                           enable agbasm colonless labels.\n"));
@@ -458,7 +463,8 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_AGBASM_LOCAL_LABELS,
         OPTION_AGBASM_COLONLESS_LABELS,
         OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS,
-        OPTION_AGBASM_MULTILINE_MACROS
+        OPTION_AGBASM_MULTILINE_MACROS,
+        OPTION_AGBASM_CHARMAP
 
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
@@ -481,6 +487,7 @@ static void parse_args(int * pargc, char *** pargv)
         , { "agbasm-debug", required_argument, NULL, OPTION_AGBASM_DEBUG}
         , { "agbasm-colon-defined-global-labels", no_argument, NULL, OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS}
         , { "agbasm-multiline-macros", no_argument, NULL, OPTION_AGBASM_MULTILINE_MACROS}
+        , { "agbasm-charmap", no_argument, NULL, OPTION_AGBASM_CHARMAP}
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
         , { "al", optional_argument, NULL, OPTION_AL }
@@ -680,7 +687,7 @@ This program has absolutely no warranty.\n"));
             break;
 
         case OPTION_AGBASM:
-            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS | AGBASM_MULTILINE_MACROS);
+            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS | AGBASM_MULTILINE_MACROS | AGBASM_CHARMAP);
             break;
 
         case OPTION_AGBASM_DEBUG:
@@ -707,6 +714,10 @@ This program has absolutely no warranty.\n"));
 
         case OPTION_AGBASM_MULTILINE_MACROS:
             flag_agbasm |= AGBASM_MULTILINE_MACROS;
+            break;
+
+        case OPTION_AGBASM_CHARMAP:
+            flag_agbasm |= AGBASM_CHARMAP;
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:
