@@ -44,6 +44,7 @@
 #include "dw2gencfi.h"
 #include "bfdver.h"
 #include "write.h"
+#include "struc-symbol.h"
 
 static void agbasm_debug_init(void);
 
@@ -1050,7 +1051,7 @@ static size_t macro_expr(const char *emsg, size_t idx, sb *in, offsetT *val)
     input_line_pointer = hold;
 
     if (ex.X_op != O_constant) {
-        as_bad("%s", emsg);
+        as_bad("%s (X_op: %u, name: %s)", emsg, ex.X_op, ex.X_add_symbol->bsym->name);
     }
 
     *val = ex.X_add_number;
