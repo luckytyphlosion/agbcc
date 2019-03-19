@@ -1961,7 +1961,7 @@ obj_elf_ident (int ignore ATTRIBUTE_UNUSED)
     }
   else
     subseg_set (comment_section, 0);
-  stringer (8 + 1);
+  stringer (8 | STRINGER_APPEND_ZERO);
   subseg_set (old_section, old_subsection);
 }
 
