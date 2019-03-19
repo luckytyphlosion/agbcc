@@ -62,10 +62,10 @@ extern bfd_boolean input_from_string;
 #define CHAR_MASK       (0xff)
 #define NOT_A_CHAR      (CHAR_MASK + 1)
 #define CHAR_CODE_ESCAPE (0x200)
-#define is_a_char(c)    (((unsigned)c) <= CHAR_MASK)
+#define is_a_char(c)    (((unsigned)(c)) <= CHAR_MASK)
 #endif /* is_a_char() */
 
-#define is_a_charmap_char(c) (((unsigned)(c & ~CHAR_CODE_ESCAPE)) <= CHAR_MASK)
+#define is_a_charmap_char(c) (((unsigned)((c) & ~CHAR_CODE_ESCAPE)) <= CHAR_MASK)
 
 extern char lex_type[];
 extern char is_end_of_line[];
@@ -221,7 +221,8 @@ struct charmap_tree {
             unsigned char values[MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES];
         };
         struct {
-            unsigned int padding_unused : MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES * 8;
+            unsigned int padding_unused_1;
+            unsigned int padding_unused_2 : 24; // MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES * 7 bits total
             unsigned int size : 7;
             unsigned int has_children : 1;
         };
@@ -252,7 +253,7 @@ enum charmap_point {
     POINTS_0xd0_TO_0xdf, // 12
     POINTS_0xe0_TO_0xef, // 13
     POINTS_0xf0_TO_0xff, // 14
-    NUM_CHARMAP_POINTS   // 15
+    NUM_CHAR_POINTS   // 15
 };
 
 #define STRINGER_APPEND_ZERO 1

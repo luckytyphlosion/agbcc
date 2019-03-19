@@ -251,7 +251,8 @@ static segT get_known_segmented_expression(expressionS * expP);
 static void pobegin(void);
 size_t get_non_macro_line_sb(sb *line);
 static char *_find_end_of_line(char *, int, int, int);
-static void next_char_of_string_common(int);
+static unsigned int next_char_of_string_common(int);
+static unsigned int next_char_of_string_charmap(void);
 
 void read_begin(void)
 {
@@ -512,7 +513,7 @@ static offsetT get_absolute_expr_and_op_type(expressionS * exp, operatorT * op)
 static offsetT get_absolute_expression_and_op_type(operatorT * op)
 {
     expressionS exp;
-    return get_absolute_expr_and_op_type(&exp, &op);
+    return get_absolute_expr_and_op_type(&exp, op);
 }
 
 static offsetT get_absolute_expr(expressionS *exp)
@@ -988,7 +989,7 @@ void read_a_source_file(const char *name)
                             if (*++input_line_pointer == ':') {
                                 input_line_pointer++;
                                 S_SET_EXTERNAL(line_label);
-                                agbasm_debug_write(_("Set :: label to external: %s"), S_GET_NAME(line_label));
+                                //agbasm_debug_write(_("Set :: label to external: %s"), S_GET_NAME(line_label));
                             }
                         } else if (colonless_label_type == COLONLESS_LABEL_NO_COLON_WITH_NEWLINE) {
                             /* we know that a newline is coming up, so just consume it */
@@ -4819,121 +4820,178 @@ void s_leb128(int sign)
 
 static void s_charmap(int arg ATTRIBUTE_UNUSED)
 {
-    if (!(flag_agbasm & AGBASM_CHARMAP)) {
-        as_bad(_("cannot use .charmap without --agbasm-charmap enabled"));
+    /* no need to check if agbasm charmap is enabled here    
+       since the macro is only added to the pseudo op table
+       if agbasm charmap is enabled */
+    unsigned int c;
+    if (top_level_charmap == NULL) {
+        top_level_charmap = calloc(1, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
+        top_level_charmap->has_children = TRUE;
+    }
+    SKIP_WHITESPACE();
+    if (*input_line_pointer != '\"') {
+        as_bad(_("missing string for agbasm charmap"));
         ignore_rest_of_line();
+        return;
     } else {
-        unsigned int c;
-        if (top_level_charmap == NULL) {
-            top_level_charmap = calloc(1, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
-            top_level_charmap->has_children = TRUE;
-        }
-        SKIP_WHITESPACE();
-        if (*input_line_pointer != '\"') {
-            as_bad(_("missing string for agbasm charmap"));
-            ignore_rest_of_line();
-        } else {
-            charmapS * cur_charmap = top_level_charmap;
-            int parsed_char = FALSE;
-            input_line_pointer++;
-            while (is_a_charmap_char(c = next_char_of_string_charmap())) {
-                int point_range_index, point_range_size, point_range_subindex;
+        charmapS * cur_charmap = top_level_charmap;
+        int parsed_char = FALSE;
 
-                if (c & CHAR_CODE_ESCAPE) {
-                    as_bad(_("agbasm charmap input string cannot have escape code, ignoring."));
-                } else {
-                    charmapS ** charmap_array_ptr;
-                    if (!cur_charmap->has_children) {
-                        cur_charmap = realloc(cur_charmap, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
-                        memset(cur_charmap->point_ranges, 0, sizeof(charmapS *) * NUM_CHAR_POINTS);
-                    }
-                    if (c < CHAR_POINT_0x20) {
-                        /* this should never happen */
-                        if (c == 0) {
-                            abort();
-                        }
-                        point_range_index = POINTS_0x01_TO_0x1f;
-                        point_range_size = POINTS_0x01_TO_0x1f_SIZE;
-                        point_range_subindex = c - 1;
-                    } else {
-                        /* handle entries with 0x10 allocated subarrays */
-                        point_range_index = (c >> 4) - 1;
-                        point_range_size = COMMON_CHAR_POINTS_SIZE;
-                        point_range_subindex = c & 0xf;
-                    }
-                    if (cur_charmap->point_ranges[point_range_index] == NULL) {
-                        cur_charmap->point_ranges[point_range_index] = calloc(point_range_size, sizeof(charmapS *));
-                    }
-                    charmap_array_ptr = cur_charmap->point_ranges[point_range_index];
+        input_line_pointer++;
+        c = next_char_of_string_charmap();
 
-                    if (charmap_array_ptr[point_range_subindex] == NULL) {
-                        charmap_array_ptr[point_range_subindex] = calloc(1, sizeof(charmapS));
-                    }
-                    cur_charmap = charmap_array_ptr[point_range_subindex];
-                    parsed_char = TRUE;
-                }
-            }
-            /* did we successfully parse an input string? */
-            if (parsed_char) {
-                SKIP_WHITESPACE();
-                /* check if there's a comma first to allow skipping parsing if there isn't */
-                if (*input_line_pointer != ",") {
-                    as_bad(_("missing replacement value parameter for agbasm charmap."));
-                    ignore_rest_of_line();
-                } else {
-                    /* now read the replacement value(s) */
-                    int replacement_value_index = 0;
-                    unsigned int replacement_value;
-                    while (*input_line_pointer == ",") {
-                        operatorT op_type;
-                        input_line_pointer++;
-                        if (replacement_value_index >= MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES) {
-                            as_bad(_("Maximum number of replacement values for agbasm charmap reached! (limit: %d)"), MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES);
-                            break;
-                        }
-                        replacement_value = (unsigned int)get_absolute_expression_and_op_type(&op_type);
+        while (is_a_charmap_char(c)) {
+            int point_range_index, point_range_size, point_range_subindex;
+            unsigned int next_c = next_char_of_string_charmap();
 
-                        if (op_type == O_absent) {
-                            as_bad(_("missing replacement value parameter for agbasm charmap (assuming 0)."));
-                        } else if (replacement_value_index != 0 && replacement_value >= 0x100) {
-                            as_bad(_("list-based replacement value `%x' does not fit in a byte for agbasm charmap, truncating."), replacement_value);
-                        }
-                        cur_charmap->values[replacement_value_index] = (unsigned char)(replacement_value & 0xff);
-                        replacement_value_index++;
-                    }
-
-                    gas_assert(replacement_value_index != 0);
-
-                    /* If we only have one replacement value in our list
-                       then expand it into bytes.
-                       Assume the size of the value is derived from
-                       its highest bit set.
-                       Also, values are assumed to be big endian regardless of system
-                       as if they were read as a stream */
-                    if (replacement_value_index == 1 && replacement_value >= 0x100) {
-                        if (replacement_value < 0x10000) {
-                            cur_charmap->size = 2;
-                            cur_charmap->values[0] = (replacement_value >> 8);
-                            cur_charmap->values[1] = (replacement_value & 0xff);
-                        } else if (replacement_value < 0x1000000) {
-                            cur_charmap->size = 3;
-                            cur_charmap->values[0] = (replacement_value >> 16);
-                            cur_charmap->values[1] = (replacement_value >> 8);
-                            cur_charmap->values[2] = (replacement_value & 0xff);
-                        } else {
-                            cur_charmap->size = 4;
-                            cur_charmap->values[0] = (replacement_value >> 24);
-                            cur_charmap->values[1] = (replacement_value >> 16);
-                            cur_charmap->values[2] = (replacement_value >> 8);
-                            cur_charmap->values[3] = (replacement_value & 0xff);
-                        }
-                    } else {
-                        cur_charmap->size = replacement_value_index;
-                    }
-                }
+            if (c & CHAR_CODE_ESCAPE) {
+                as_bad(_("agbasm charmap input string cannot have escape code, ignoring."));
             } else {
-                as_bad(_("no valid characters were defined for agbasm charmap input string."));
+                charmapS ** next_charmap;
+
+                if (flag_agbasm & AGBASM_DEBUG) {
+                    if (ISPRINT(c)) {
+                        agbasm_debug_write(_("agbasm .charmap: Reading token character `%c'."), c);
+                    } else {
+                        agbasm_debug_write(_("agbasm .charmap: Reading token byte `0x%x'."), c);
+                    }
+                }
+
+                if (!cur_charmap->has_children) {
+                    as_fatal("!cur_charmap->has_children");
+                }
+
+                if (c < CHAR_POINT_0x20) {
+                    /* this should never happen */
+                    if (c == 0) {
+                        abort();
+                    }
+                    point_range_index = POINTS_0x01_TO_0x1f;
+                    point_range_size = POINTS_0x01_TO_0x1f_SIZE;
+                    point_range_subindex = c - 1;
+                } else {
+                    /* handle entries with 0x10 allocated subarrays */
+                    point_range_index = (c >> 4) - 1;
+                    point_range_size = COMMON_CHAR_POINTS_SIZE;
+                    point_range_subindex = c & 0xf;
+                }
+
+                if (cur_charmap->point_ranges[point_range_index] == NULL) {
+                    cur_charmap->point_ranges[point_range_index] = calloc(point_range_size, sizeof(charmapS *));    
+                }
+
+                next_charmap = &(cur_charmap->point_ranges[point_range_index][point_range_subindex]);
+
+                if (*next_charmap == NULL) {
+                    if (is_a_charmap_char(next_c)) {
+                        *next_charmap = calloc(1, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
+                        (*next_charmap)->has_children = TRUE;
+                        agbasm_debug_write(_("agbasm .charmap: set has_children"));
+                    } else {
+                        agbasm_debug_write(_("agbasm .charmap: !is_a_charmap_char(next_c)"));
+                        *next_charmap = calloc(1, sizeof(charmapS));
+                    }
+                } else if (is_a_charmap_char(next_c) && !((*next_charmap)->has_children)) {
+                    *next_charmap = realloc(*next_charmap, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
+                    memset((*next_charmap)->point_ranges, 0, sizeof(charmapS *) * NUM_CHAR_POINTS);
+                    (*next_charmap)->has_children = TRUE;
+                }
+
+                cur_charmap = *next_charmap;
+                parsed_char = TRUE;
+                agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d"), cur_charmap->size);
             }
+            c = next_c;
+        }
+
+        /* did we successfully parse an input string? */
+        if (parsed_char) {
+            SKIP_WHITESPACE();
+            /* check if there's a comma first to allow skipping parsing if there isn't */
+
+            if (*input_line_pointer != ',') {
+                as_bad(_("missing replacement value parameter for agbasm charmap."));
+                ignore_rest_of_line();
+                return;
+            } else {
+                /* now read the replacement value(s) */
+                int replacement_value_index = 0;
+                int first_replacement_value_greater_than_byte = FALSE;
+                unsigned int replacement_value;
+                
+                while (*input_line_pointer == ',') {
+                    operatorT op_type;
+                    input_line_pointer++;
+                    if (replacement_value_index >= MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES) {
+                        if (!is_it_end_of_statement()) {
+                            as_bad(_("Maximum number of replacement values for agbasm charmap reached! (limit: %d)"), MAX_AGBASM_CHARMAP_REPLACEMENT_VALUES);
+                            /* suppress "junk at end of line" error caused by demand_empty_rest_of_line() */
+                            ignore_rest_of_line();
+                            /* don't advance past the end of line */
+                            input_line_pointer--;
+                        }
+                        break;
+                    }
+
+                    /* this is run if the first value was greater than a byte
+                       and it turned out that we're actually processing list
+                       based values */
+                    if (first_replacement_value_greater_than_byte) {
+                        as_bad(_("list-based replacement value `0x%x' does not fit in a byte for agbasm charmap, truncating."), replacement_value);
+                        /* set this to false to prevent further error messages */
+                        first_replacement_value_greater_than_byte = FALSE;
+                    }
+
+                    replacement_value = (unsigned int)get_absolute_expression_and_op_type(&op_type);
+
+                    if (op_type == O_absent) {
+                        as_bad(_("missing replacement value parameter for agbasm charmap (assuming 0)."));
+                    } else if (replacement_value_index != 0 && replacement_value >= 0x100) {
+                        as_bad(_("list-based replacement value `0x%x' does not fit in a byte for agbasm charmap, truncating."), replacement_value);
+                    } else if (replacement_value_index == 0 && replacement_value >= 0x100) {
+                        /* keep track of this value later in case that these are actually list based values */
+                        first_replacement_value_greater_than_byte = TRUE;
+                    }
+
+                    cur_charmap->values[replacement_value_index] = (unsigned char)(replacement_value & 0xff);
+                    replacement_value_index++;
+                }
+
+                gas_assert(replacement_value_index != 0);
+
+                /* If we only have one replacement value in our list
+                   then expand it into bytes.
+                   Assume the size of the value is derived from
+                   its highest bit set.
+                   Also, values are assumed to be big endian regardless of system
+                   as if they were read as a stream */
+                if (replacement_value_index == 1 && replacement_value >= 0x100) {
+                    if (replacement_value < 0x10000) {
+                        cur_charmap->size = 2;
+                        cur_charmap->values[0] = (replacement_value >> 8);
+                        cur_charmap->values[1] = (replacement_value & 0xff);
+                    } else if (replacement_value < 0x1000000) {
+                        cur_charmap->size = 3;
+                        cur_charmap->values[0] = (replacement_value >> 16);
+                        cur_charmap->values[1] = (replacement_value >> 8);
+                        cur_charmap->values[2] = (replacement_value & 0xff);
+                    } else {
+                        cur_charmap->size = 4;
+                        cur_charmap->values[0] = (replacement_value >> 24);
+                        cur_charmap->values[1] = (replacement_value >> 16);
+                        cur_charmap->values[2] = (replacement_value >> 8);
+                        cur_charmap->values[3] = (replacement_value & 0xff);
+                    }
+                } else {
+                    cur_charmap->size = replacement_value_index;
+                }
+
+                agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d, cur_charmap->has_children = %d, replacement_value = 0x%x\n"), cur_charmap->size, cur_charmap->has_children, replacement_value);
+            }
+        } else {
+            as_bad(_("no valid characters were defined for agbasm charmap input string."));
+            ignore_rest_of_line();
+            return;
         }
     }
     demand_empty_rest_of_line();
@@ -5007,13 +5065,10 @@ void stringer(int bits_appendzero_directive)
     md_cons_align(1);
 #endif
 
-    /* warn for the following illegal combinations:
-         .asciz[num] (synonym for .string[num]) is used
+    /* .asciz[num] (synonym for .string[num]) is used
           when agbasm charmap is not enabled (in the freak
           case where .asciz[num]
-       
     */
-
     if (is_stringn_directive) {
         as_warn(_("`.string[num]' directive is undefined when using agbasm charmap, assuming `.string' (use provided `.asciz[num]' directives for original behavior)."));
     }
@@ -5053,24 +5108,45 @@ void stringer(int bits_appendzero_directive)
             start = input_line_pointer;
 #endif
             if (is_agbasm_charmap_string) {
+                /* TODO: the code flow of this is insanely hard to understand.
+                   see if it's possible to clean this up */
                 charmapS * cur_charmap = top_level_charmap;
                 charmapS * last_matched_charmap = NULL;
                 char * last_matched_charmap_input_line_pointer = input_line_pointer;
-                int is_a_char_bool = is_a_charmap_char(c = next_char_of_string_charmap());
-                if (!is_a_char_bool) {
-                    
+                int parsed_character_at_all_or_since_last_match = FALSE;
+
+                agbasm_debug_write(_("agbasm charmap stringer: string parse start"));
+
                 while (TRUE) {
                     int reached_leaf_node = FALSE;
-                    int successful_match = FALSE;
-
-                    if (is_a_char_bool) {
+                    agbasm_debug_write(_("agbasm charmap stringer: token parse start"));
+                    // termination conditions:
+                    // reached string ender (" or \0)
+                    // found match with no children
+                    // reached end of tree with no match
+                    do {
                         int point_range_index, point_range_subindex;
                         charmapS ** charmap_array_ptr;
+
+                        if (!is_a_charmap_char(c = next_char_of_string_charmap())) {
+                            agbasm_debug_write(_("agbasm charmap stringer: broke because !is_a_charmap_char"));
+                            break;
+                        }
+
                         if (c & CHAR_CODE_ESCAPE) {
                             as_bad(_("agbasm charmap string cannot have escape code."));
-                            ignore_end_of_line();
+                            ignore_rest_of_line();
                             return;
                         }
+                        if (flag_agbasm & AGBASM_DEBUG) {
+                            if (ISPRINT(c)) {
+                                agbasm_debug_write(_("agbasm charmap stringer: cur token is `%c'"), c);
+                            } else {
+                                agbasm_debug_write(_("agbasm charmap stringer: cur token is `0x%x'"), c);
+                            }
+                        }
+
+                        parsed_character_at_all_or_since_last_match = TRUE;
 
                         if (c < CHAR_POINT_0x20) {
                             /* this should never happen */
@@ -5084,56 +5160,63 @@ void stringer(int bits_appendzero_directive)
                             point_range_index = (c >> 4) - 1;
                             point_range_subindex = c & 0xf;
                         }
-
-                        gas_assert(cur_charmap->has_child);
+    
+                        gas_assert(cur_charmap->has_children);
 
                         charmap_array_ptr = cur_charmap->point_ranges[point_range_index];
                         if (charmap_array_ptr != NULL) {
                             cur_charmap = charmap_array_ptr[point_range_subindex];
                             if (cur_charmap != NULL) {
                                 if (cur_charmap->size) {
+                                    agbasm_debug_write(_("agbasm charmap stringer: found match"));
                                     last_matched_charmap = cur_charmap;
                                     last_matched_charmap_input_line_pointer = input_line_pointer;
                                 }
-                                if (!cur_charmap->has_child) {
-                                    break;
+                                if (!cur_charmap->has_children) {
+                                    agbasm_debug_write(_("agbasm charmap stringer: broke because !cur_charmap->has_children"));
+                                    reached_leaf_node = TRUE;
                                 }
                             } else {
+                                agbasm_debug_write(_("agbasm charmap stringer: broke because cur_charmap == NULL"));
                                 reached_leaf_node = TRUE;
                             }
                         } else {
+                            agbasm_debug_write(_("agbasm charmap stringer: broke because charmap_array_ptr == NULL"));
                             reached_leaf_node = TRUE;
                         }
+                    } while (!reached_leaf_node);
+
+                    agbasm_debug_write(_("agbasm charmap stringer: token parse end"));
+
+                    /* The only valid way to exit is if the next character isn't a character
+                    and either:
+                      we haven't even parsed any characters at all (empty string)
+                      we've just performed a successful match and replace */
+                    if (!parsed_character_at_all_or_since_last_match) {
+                        break;
                     }
 
-                    if (reached_leaf_node || !is_a_char_bool) {
-                        if (last_matched_charmap) {
-                            int num_chars = last_matched_charmap->size;
-                            unsigned char * values = last_matched_charmap->values;
-                            for (int i = 0; i < num_chars; i++) {
-                                stringer_append_char(values[i], 8);
-                            }
-                            input_line_pointer = last_matched_charmap_input_line_pointer;
-                            cur_charmap = top_level_charmap;
-                            last_matched_charmap = NULL;
-                            /* The only valid way to exit is if the next character isn't a character
-                               and we've just performed a successful match and replace */
-                            is_a_char_bool = is_a_char(c = next_char_of_string_charmap());
-                            if (!is_a_char_bool) {
-                                break;
-                            }
-                        } else {
-                            /* start input_line_pointer CLOBBER */
-                            char saved_input_line_pointer_cur_char = *input_line_pointer;
-                            *input_line_pointer = '\0';
-                            as_bad(_("unknown agbasm charmap character mapping `%s'."), last_matched_charmap_input_line_pointer);
-                            *input_line_pointer = saved_input_line_pointer_cur_char;
-                            /* end input_line_pointer CLOBBER */
-                            ignore_rest_of_line();
-                            return;
+                    if (last_matched_charmap) {
+                        int num_chars = last_matched_charmap->size;
+                        unsigned char * values = last_matched_charmap->values;
+                        for (int i = 0; i < num_chars; i++) {
+                            stringer_append_char(values[i], 8);
                         }
+                        input_line_pointer = last_matched_charmap_input_line_pointer;
+                        cur_charmap = top_level_charmap;
+                        last_matched_charmap = NULL;
+                        parsed_character_at_all_or_since_last_match = FALSE;
+                    } else {
+                        /* start input_line_pointer CLOBBER */
+                        char saved_input_line_pointer_cur_char = *input_line_pointer;
+                        *input_line_pointer = '\0';
+                        as_bad(_("unknown agbasm charmap character mapping `%s'."), last_matched_charmap_input_line_pointer);
+                        *input_line_pointer = saved_input_line_pointer_cur_char;
+                        /* end input_line_pointer CLOBBER */
+                        ignore_rest_of_line();
+                        return;
                     }
-                } while (
+                }
             } else {
                 while (is_a_char(c = next_char_of_string())) {
                     stringer_append_char(c & CHAR_MASK, bitsize);
@@ -5143,6 +5226,7 @@ void stringer(int bits_appendzero_directive)
                     stringer_append_char(0, bitsize);
                 }
             }
+            agbasm_debug_write(_("agbasm charmap stringer: string parse end"));
 
             know(input_line_pointer[-1] == '\"');
 

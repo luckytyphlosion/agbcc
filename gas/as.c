@@ -248,7 +248,7 @@ Options:\n\
     fprintf(stream, _("\
   --agbasm-debug FILE     enable agbasm debug info\n"));
     fprintf(stream, _("\n\
-  --agbasm-charmap        enable agbasm charmap.\n"));
+  --agbasm-charmap        enable agbasm charmap. Detailed explanation TODO.\n"));
     fprintf(stream, _("\
   --agbasm-colonless-labels\n\
                           enable agbasm colonless labels.\n"));
