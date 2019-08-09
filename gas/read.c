@@ -30,6 +30,7 @@
 /* Routines that read assembler source text to build spaghetti in memory.
    Another group of these functions is in the expr.c module.  */
 
+//#include <sys/time.h>
 #include "as.h"
 #include "safe-ctype.h"
 #include "subsegs.h"
@@ -253,6 +254,7 @@ size_t get_non_macro_line_sb(sb *line);
 static char *_find_end_of_line(char *, int, int, int);
 static unsigned int next_char_of_string_common(int);
 static unsigned int next_char_of_string_charmap(void);
+//void s_benchmark(int);
 
 void read_begin(void)
 {
@@ -308,6 +310,7 @@ static const pseudo_typeS potable_agbasm_charmap[] = {
     { "asciz64", stringer, 64 | STRINGER_APPEND_ZERO },
     /* for defining charmaps */
     { "charmap", s_charmap, 0 },
+    //{ "benchmark", s_benchmark, 0 },
     { NULL, NULL, 0 } /* End sentinel.  */
 };
 
@@ -635,7 +638,7 @@ static int try_macro(char term, const char *line)
         /*{
             unsigned int line;
             const char * input_file_name = as_where(&line);
-            agbasm_debug_write("%s:%u: *input_line_pointer in try_macro after term restoration: %c", input_file_name, line, *input_line_pointer);
+            agbasm_debug_write("%s:%u: *input_line_pointer in try_macro after term restoration: 0x%02x, input_line_pointer[-1]: 0x%02x", input_file_name, line, *input_line_pointer, input_line_pointer[-1]);
         }*/
         input_scrub_include_sb(&out,
                                input_line_pointer, 1);
@@ -2824,6 +2827,27 @@ void s_mri_sect(char *type ATTRIBUTE_UNUSED)
     as_bad("MRI mode not supported for this target");
     ignore_rest_of_line();
 }
+
+/*
+static int benchmark_started = FALSE;
+static struct timespec benchmark_start;
+
+void s_benchmark(int ignore ATTRIBUTE_UNUSED)
+{
+    if (benchmark_started) {
+        struct timespec benchmark_end;
+        clock_gettime(CLOCK_MONOTONIC, &benchmark_end);
+        benchmark_started = FALSE;
+        uint64_t delta_us = (benchmark_end.tv_sec - benchmark_start.tv_sec) * 1000000 + (benchmark_end.tv_nsec - benchmark_start.tv_nsec) / 1000;
+        printf("Benchmark ended. time taken: %lu\n", delta_us);
+    } else {
+        clock_gettime(CLOCK_MONOTONIC, &benchmark_start);
+        benchmark_started = TRUE;
+        printf("Benchmark started\n");        
+    }
+    demand_empty_rest_of_line();
+}
+*/
 
 /* Handle the .print pseudo-op.  */
 

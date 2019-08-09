@@ -956,6 +956,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
     int done_agbasm_multiline_macro = FALSE;
     int comma_exists = TRUE;
     int num_missing_end_of_line_comma_separator_warnings = 0;
+    uint scanned_multiple_lines = FALSE;
 
     sb_new(&t);
 
@@ -1021,6 +1022,23 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                         } else {
                             as_bad(_("junk at end of line after agbasm multiline macro closing, first unrecognized character valued 0x%x"), in->ptr[scan]);
                         }
+                    }
+                    /* if this multiline macro encompasses more than one line
+                       then decrement input_line_pointer
+                       because get_non_macro_line_sb focuses the input_line_pointer
+                       at the character after the newline, while _find_end_of_line
+                       (the last function called that modifies input_line_pointer if
+                       this macro only took up one line) sets input_line_pointer at
+                       the newline. try_macro (next function that modifies 
+                       input_line_pointer) then increments the input_line_pointer
+                       so that it points to the character after the newline, which
+                       the start of the main read loop uses as an indicator to
+                       increment line counters. without incrementing, the newline
+                       would have been skipped over and the resulting line number
+                       would be off by one */
+
+                    if (scanned_multiple_lines) {
+                        input_line_pointer--;
                     }
                     break;
                 /* this is set at the end of the loop when consuming
@@ -1136,6 +1154,7 @@ static const char *macro_expand(size_t idx, sb *in, macro_entry *m, sb *out, int
                 break;
             }
             idx = 0;
+            scanned_multiple_lines = TRUE;
         }
     }
 
