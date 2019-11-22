@@ -8637,11 +8637,6 @@ _bfd_elf_is_local_label_name (bfd *abfd ATTRIBUTE_UNUSED,
   if (!agbasm_local_label_syntax) {
     if (name[0] == '.' && name[1] == 'L')
       return TRUE;
-  } else {
-  /* Alternate GNU local label syntax if agbasm_local_label_syntax is enabled
-     since agbasm local labels are preferred to start with '.' */
-    if (name[0] == '.' && name[1] == '$' && name[2] == 'L')
-      return TRUE;
   }
 
   /* At least some SVR4 compilers (e.g., UnixWare 2.1 cc) generate

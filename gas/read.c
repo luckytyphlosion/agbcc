@@ -4875,9 +4875,9 @@ static void s_charmap(int arg ATTRIBUTE_UNUSED)
 
                 if (flag_agbasm & AGBASM_DEBUG) {
                     if (ISPRINT(c)) {
-                        agbasm_debug_write(_("agbasm .charmap: Reading token character `%c'."), c);
+                        //agbasm_debug_write(_("agbasm .charmap: Reading token character `%c'."), c);
                     } else {
-                        agbasm_debug_write(_("agbasm .charmap: Reading token byte `0x%x'."), c);
+                        //agbasm_debug_write(_("agbasm .charmap: Reading token byte `0x%x'."), c);
                     }
                 }
 
@@ -4910,9 +4910,9 @@ static void s_charmap(int arg ATTRIBUTE_UNUSED)
                     if (is_a_charmap_char(next_c)) {
                         *next_charmap = calloc(1, sizeof(charmapS) + sizeof(charmapS *) * NUM_CHAR_POINTS);
                         (*next_charmap)->has_children = TRUE;
-                        agbasm_debug_write(_("agbasm .charmap: set has_children"));
+                        //agbasm_debug_write(_("agbasm .charmap: set has_children"));
                     } else {
-                        agbasm_debug_write(_("agbasm .charmap: !is_a_charmap_char(next_c)"));
+                        //agbasm_debug_write(_("agbasm .charmap: !is_a_charmap_char(next_c)"));
                         *next_charmap = calloc(1, sizeof(charmapS));
                     }
                 } else if (is_a_charmap_char(next_c) && !((*next_charmap)->has_children)) {
@@ -4923,7 +4923,7 @@ static void s_charmap(int arg ATTRIBUTE_UNUSED)
 
                 cur_charmap = *next_charmap;
                 parsed_char = TRUE;
-                agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d"), cur_charmap->size);
+                //agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d"), cur_charmap->size);
             }
             c = next_c;
         }
@@ -5010,7 +5010,7 @@ static void s_charmap(int arg ATTRIBUTE_UNUSED)
                     cur_charmap->size = replacement_value_index;
                 }
 
-                agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d, cur_charmap->has_children = %d, replacement_value = 0x%x\n"), cur_charmap->size, cur_charmap->has_children, replacement_value);
+                //agbasm_debug_write(_("agbasm .charmap: cur_charmap->size = %d, cur_charmap->has_children = %d, replacement_value = 0x%x\n"), cur_charmap->size, cur_charmap->has_children, replacement_value);
             }
         } else {
             as_bad(_("no valid characters were defined for agbasm charmap input string."));
@@ -5139,11 +5139,11 @@ void stringer(int bits_appendzero_directive)
                 char * last_matched_charmap_input_line_pointer = input_line_pointer;
                 int parsed_character_at_all_or_since_last_match = FALSE;
 
-                agbasm_debug_write(_("agbasm charmap stringer: string parse start"));
+                //agbasm_debug_write(_("agbasm charmap stringer: string parse start"));
 
                 while (TRUE) {
                     int reached_leaf_node = FALSE;
-                    agbasm_debug_write(_("agbasm charmap stringer: token parse start"));
+                    //agbasm_debug_write(_("agbasm charmap stringer: token parse start"));
                     // termination conditions:
                     // reached string ender (" or \0)
                     // found match with no children
@@ -5153,7 +5153,7 @@ void stringer(int bits_appendzero_directive)
                         charmapS ** charmap_array_ptr;
 
                         if (!is_a_charmap_char(c = next_char_of_string_charmap())) {
-                            agbasm_debug_write(_("agbasm charmap stringer: broke because !is_a_charmap_char"));
+                            //agbasm_debug_write(_("agbasm charmap stringer: broke because !is_a_charmap_char"));
                             break;
                         }
 
@@ -5164,9 +5164,9 @@ void stringer(int bits_appendzero_directive)
                         }
                         if (flag_agbasm & AGBASM_DEBUG) {
                             if (ISPRINT(c)) {
-                                agbasm_debug_write(_("agbasm charmap stringer: cur token is `%c'"), c);
+                                //agbasm_debug_write(_("agbasm charmap stringer: cur token is `%c'"), c);
                             } else {
-                                agbasm_debug_write(_("agbasm charmap stringer: cur token is `0x%x'"), c);
+                                //agbasm_debug_write(_("agbasm charmap stringer: cur token is `0x%x'"), c);
                             }
                         }
 
@@ -5192,25 +5192,25 @@ void stringer(int bits_appendzero_directive)
                             cur_charmap = charmap_array_ptr[point_range_subindex];
                             if (cur_charmap != NULL) {
                                 if (cur_charmap->size) {
-                                    agbasm_debug_write(_("agbasm charmap stringer: found match"));
+                                    //agbasm_debug_write(_("agbasm charmap stringer: found match"));
                                     last_matched_charmap = cur_charmap;
                                     last_matched_charmap_input_line_pointer = input_line_pointer;
                                 }
                                 if (!cur_charmap->has_children) {
-                                    agbasm_debug_write(_("agbasm charmap stringer: broke because !cur_charmap->has_children"));
+                                    //agbasm_debug_write(_("agbasm charmap stringer: broke because !cur_charmap->has_children"));
                                     reached_leaf_node = TRUE;
                                 }
                             } else {
-                                agbasm_debug_write(_("agbasm charmap stringer: broke because cur_charmap == NULL"));
+                                //agbasm_debug_write(_("agbasm charmap stringer: broke because cur_charmap == NULL"));
                                 reached_leaf_node = TRUE;
                             }
                         } else {
-                            agbasm_debug_write(_("agbasm charmap stringer: broke because charmap_array_ptr == NULL"));
+                            //agbasm_debug_write(_("agbasm charmap stringer: broke because charmap_array_ptr == NULL"));
                             reached_leaf_node = TRUE;
                         }
                     } while (!reached_leaf_node);
 
-                    agbasm_debug_write(_("agbasm charmap stringer: token parse end"));
+                    //agbasm_debug_write(_("agbasm charmap stringer: token parse end"));
 
                     /* The only valid way to exit is if the next character isn't a character
                     and either:
@@ -5250,7 +5250,7 @@ void stringer(int bits_appendzero_directive)
                     stringer_append_char(0, bitsize);
                 }
             }
-            agbasm_debug_write(_("agbasm charmap stringer: string parse end"));
+            //agbasm_debug_write(_("agbasm charmap stringer: string parse end"));
 
             know(input_line_pointer[-1] == '\"');
 

@@ -216,7 +216,100 @@ static void show_agbasm_help(FILE * stream)
                     directives do not end with a comma.\n"), AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING, AGBASM_MULTILINE_MACRO_OPENING, AGBASM_MULTILINE_MACRO_CLOSING);
     fprintf(stream, _("\n\
   --agbasm-charmap\n\
-                    enable agbasm charmap.\n"));
+                    enable agbasm charmap. This allows specifying characters in\n\
+                    strings to map to custom values, as opposed to the values of\n\
+                    the encoding used. The .charmap macro is used to specify a\n\
+                    mapping. For example:\n\
+                    \n\
+                        .charmap \"A\", 0x20\n\
+                        .string \"A\"\n\
+                    \n\
+                    will output a value of 0x20. Input patterns for .charmap are\n\
+                    not restricted to a single byte, rather, the input\n\
+                    pattern can be as long as possible. The way that input patterns\n\
+                    are detected is that it will try to find the longest defined\n\
+                    pattern at the current point in the string. For example:\n\
+                    \n\
+                        .charmap \"d\", 1\n\
+                        .charmap \"o\", 2\n\
+                        .charmap \"n\", 3\n\
+                        .charmap \"'\", 4\n\
+                        .charmap \"t\", 5\n\
+                        .charmap \"'t\", 6\n\
+                        .string \"don't\"\n\
+                    \n\
+                    would output `1, 2, 3, 6', instead of `1, 2,\n\
+                    3, 4, 5'.\n\
+                    A more complex example:\n\
+                    \n\
+                        .charmap \"B\", 1\n\
+                        .charmap \"A\", 2\n\
+                        .charmap \"N\", 3\n\
+                        .charmap \"BAN\", 4\n\
+                        .charmap \"BANANA\", 5\n\
+                        .charmap \"ANA\", 6\n\
+                        .string \"BANAN\"\n\
+                    would output `4, 2, 3'. Internally, the way the string would\n\
+                    be parsed would be approximately\n\
+                        - Recognize B as a potential match and save it as the\n\
+                          last match\n\
+                        - Parse BA, has no match\n\
+                        - Recognize BAN as a potential match and save it\n\
+                        - Parse BANA, has no match\n\
+                        - Parse BANAN, has no match\n\
+                        - Reached end of string, output the value of the last match\n\
+                          which is `BAN', and set the input pointer to the end of the\n\
+                          last match, which is after 'BAN`\n\
+                        - Recognize A as a potential patch and save it\n\
+                        - Parse AN, has no match\n\
+                        - Reached end of string, output the value of `A' and set the\n\
+                          input pointer to the end of `A'\n\
+                        - Recognize N as a potential match and save it\n\
+                        - Reached end of string, output the value of `N' and stop\n\
+                          parsing\n\
+                    \n\
+                    The size of the output value for a .charmap can be longer than one byte.\n\
+                    There are two ways to do this. The first is to specify a list of bytes\n\
+                    as the output values. For example:\n\
+                    \n\
+                        .charmap \"C\", 0x20, 0x21, 0x22\n\
+                        .string \"C\"\n\
+                    \n\
+                    will output `0x20, 0x21, 0x22'. The second is to specify a single value\n\
+                    which can be at most 4 bytes long. This value is interpreted as variable\n\
+                    width, as in leading zeroes are ignored. For example, if the value is less\n\
+                    than 0x100, only one byte is output. If the value is less than 0x10000,\n\
+                    only two bytes are output. If the value less than 0x1000000, only three bytes\n\
+                    are output, otherwise, four bytes are output. The bytes output are big-endian\n\
+                    regardless of the endianness of the system, as this is merely a convenience\n\
+                    method for the first method. The output value can be up to seven bytes long.\n\
+                    Zero as any of the bytes of an output value is acceptable.\n\
+                    \n\
+                    As .string is now used for agbasm charmap, .ascizN directives have been\n\
+                    created to replicate the behavior of the original .stringN directives.\n\
+                    .ascizN directives are not enabled if agbasm charmap is not enabled.\n\
+                    \n\
+                    Internally, agbasm charmaps are represented as a tree structure. They have\n\
+                    been designed to be memory efficient: A .charmap entry with n characters\n\
+                    would take up 256*n + 8 bytes for the worst case on a 64-bit machine.\n\
+                    The way the above \"BANAN\" example would be parsed would be approximately\n\
+                        - Recognize B as a potential match and save it as the\n\
+                          last match\n\
+                        - Parse BA, has no match\n\
+                        - Recognize BAN as a potential match and save it\n\
+                        - Parse BANA, has no match\n\
+                        - Parse BANAN, has no match\n\
+                        - Reached end of string, output the value of the last match\n\
+                          which is `BAN', and set the input pointer to the end of the\n\
+                          last match, which is after 'BAN`\n\
+                        - Recognize A as a potential patch and save it\n\
+                        - Parse AN, has no match\n\
+                        - Reached end of string, output the value of `A' and set the\n\
+                          input pointer to the end of `A'\n\
+                        - Recognize N as a potential match and save it\n\
+                        - Reached end of string, output the value of `N' and stop\n\
+                          parsing\n\
+                    \n"));
     fprintf(stream, _("\n\
   --agbasm-help     show this message and exit\n"));
     fputc('\n', stream);
@@ -261,6 +354,9 @@ Options:\n\
     fprintf(stream, _("\
   --agbasm-multiline-macros\n\
                           enable agbasm multiline macros.\n"));
+    fprintf(stream, _("\
+  --agbasm-no-gba-thumb-after-label-disasm-fix\n\
+                          enable agbasm no$gba thumb after label disassembler fix.\n"));
     fprintf(stream, _("\
   --agbasm-help           display detailed documentation on agbasm features and exit\n"));
     fprintf(stream, _("\
@@ -465,7 +561,8 @@ static void parse_args(int * pargc, char *** pargv)
         OPTION_AGBASM_COLONLESS_LABELS,
         OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS,
         OPTION_AGBASM_MULTILINE_MACROS,
-        OPTION_AGBASM_CHARMAP
+        OPTION_AGBASM_CHARMAP,
+        OPTION_AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX
 
         /* When you add options here, check that they do
            not collide with OPTION_MD_BASE.  See as.h.  */
@@ -489,6 +586,7 @@ static void parse_args(int * pargc, char *** pargv)
         , { "agbasm-colon-defined-global-labels", no_argument, NULL, OPTION_AGBASM_COLON_DEFINED_GLOBAL_LABELS}
         , { "agbasm-multiline-macros", no_argument, NULL, OPTION_AGBASM_MULTILINE_MACROS}
         , { "agbasm-charmap", no_argument, NULL, OPTION_AGBASM_CHARMAP}
+        , { "agbasm-no-gba-thumb-after-label-disasm-fix", no_argument, NULL, OPTION_AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX}
         , { "a", optional_argument, NULL, 'a' }
         /* Handle -al=<FILE>.  */
         , { "al", optional_argument, NULL, OPTION_AL }
@@ -688,7 +786,7 @@ This program has absolutely no warranty.\n"));
             break;
 
         case OPTION_AGBASM:
-            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS | AGBASM_MULTILINE_MACROS | AGBASM_CHARMAP);
+            flag_agbasm |= (AGBASM_LOCAL_LABELS | AGBASM_COLONLESS_LABELS | AGBASM_COLON_DEFINED_GLOBAL_LABELS | AGBASM_MULTILINE_MACROS | AGBASM_CHARMAP | AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX);
             break;
 
         case OPTION_AGBASM_DEBUG:
@@ -719,6 +817,10 @@ This program has absolutely no warranty.\n"));
 
         case OPTION_AGBASM_CHARMAP:
             flag_agbasm |= AGBASM_CHARMAP;
+            break;
+        
+        case OPTION_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX:
+            flag_agbasm |= AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX;
             break;
 
         case OPTION_DEBUG_PREFIX_MAP:

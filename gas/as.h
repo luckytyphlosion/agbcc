@@ -354,6 +354,7 @@ extern int chunksize;
 #define AGBASM_COLON_DEFINED_GLOBAL_LABELS 0x8
 #define AGBASM_MULTILINE_MACROS 0x10
 #define AGBASM_CHARMAP 0x20
+#define AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX 0x40
 
 /* agbasm features enabled */
 COMMON int flag_agbasm;
