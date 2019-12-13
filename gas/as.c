@@ -819,7 +819,7 @@ This program has absolutely no warranty.\n"));
             flag_agbasm |= AGBASM_CHARMAP;
             break;
         
-        case OPTION_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX:
+        case OPTION_AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX:
             flag_agbasm |= AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX;
             break;
 

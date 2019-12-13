@@ -2416,25 +2416,18 @@ make_mapping_symbol (enum mstate state, valueT value, fragS *frag)
   symbolS * symbolP;
   const char * symname;
   int type;
-  uint line;
-  const char * filename;
-
-  filename = as_where(&line);
 
   switch (state)
     {
     case MAP_DATA:
-      agbasm_debug_write("make_mapping_symbol: MAP_DATA, file: %s:%d", filename, line);
       symname = "$d";
       type = BSF_NO_FLAGS;
       break;
     case MAP_ARM:
-      agbasm_debug_write("make_mapping_symbol: MAP_ARM, file: %s:%d", filename, line);
       symname = "$a";
       type = BSF_NO_FLAGS;
       break;
     case MAP_THUMB:
-      agbasm_debug_write("make_mapping_symbol: MAP_THUMB, file: %s:%d", filename, line);
       symname = "$t";
       type = BSF_NO_FLAGS;
       break;
@@ -12424,6 +12417,14 @@ arm_frag_align_code (int n, int max)
   *p = 0;
 }
 
+/* forces calls to mapping_state and mapping_state_2 to re-emit a $ symbol */
+
+void arm_check_label(symbolS * label) {
+    if (flag_agbasm & AGBASM_NO_GBA_THUMB_AFTER_LABEL_DISASM_FIX) {
+        seg_info (now_seg)->tc_segment_info_data.mapstate = MAP_UNDEFINED;
+    }
+}
+
 /* Perform target specific initialisation of a frag.
    Note - despite the name this initialisation is not done when the frag
    is created, but only when its type is assigned.  A frag can be created
@@ -12449,22 +12450,16 @@ arm_init_frag (fragS * fragP, int max_chars)
 
   /* Record a mapping symbol for alignment frags.  We will delete this
      later if the alignment ends up empty.  */
-     
-  uint line;
-  const char * filename;
 
-  filename = as_where(&line);
   switch (fragP->fr_type)
     {
     case rs_align:
     case rs_align_test:
     case rs_fill:
       
-      agbasm_debug_write("arm_init_frag: rs_align, file: %s:%d", filename, line);
       mapping_state_2 (MAP_DATA, max_chars);
       break;
     case rs_align_code:
-      agbasm_debug_write("arm_init_frag: rs_align_code, file: %s:%d", filename, line);
       mapping_state_2 (frag_thumb_mode ? MAP_THUMB : MAP_ARM, max_chars);
       break;
     default:

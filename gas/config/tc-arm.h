@@ -322,4 +322,5 @@ extern char arm_line_separator_chars[];
 #define TC_EQUAL_IN_INSN(c, s) arm_tc_equal_in_insn ((c), (s))
 extern bfd_boolean arm_tc_equal_in_insn (int, char *);
 
-//#define tc_check_label arm_check_label
+extern void arm_check_label(symbolS *);
+#define tc_check_label(label) arm_check_label(label)
