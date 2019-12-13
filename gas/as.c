@@ -238,8 +238,7 @@ static void show_agbasm_help(FILE * stream)
                         .charmap \"'t\", 6\n\
                         .string \"don't\"\n\
                     \n\
-                    would output `1, 2, 3, 6', instead of `1, 2,\n\
-                    3, 4, 5'.\n\
+                    would output `1, 2, 3, 6', instead of `1, 2, 3, 4, 5'.\n\
                     A more complex example:\n\
                     \n\
                         .charmap \"B\", 1\n\
@@ -249,24 +248,7 @@ static void show_agbasm_help(FILE * stream)
                         .charmap \"BANANA\", 5\n\
                         .charmap \"ANA\", 6\n\
                         .string \"BANAN\"\n\
-                    would output `4, 2, 3'. Internally, the way the string would\n\
-                    be parsed would be approximately\n\
-                        - Recognize B as a potential match and save it as the\n\
-                          last match\n\
-                        - Parse BA, has no match\n\
-                        - Recognize BAN as a potential match and save it\n\
-                        - Parse BANA, has no match\n\
-                        - Parse BANAN, has no match\n\
-                        - Reached end of string, output the value of the last match\n\
-                          which is `BAN', and set the input pointer to the end of the\n\
-                          last match, which is after 'BAN`\n\
-                        - Recognize A as a potential patch and save it\n\
-                        - Parse AN, has no match\n\
-                        - Reached end of string, output the value of `A' and set the\n\
-                          input pointer to the end of `A'\n\
-                        - Recognize N as a potential match and save it\n\
-                        - Reached end of string, output the value of `N' and stop\n\
-                          parsing\n\
+                    would output `4, 2, 3'.\n\
                     \n\
                     The size of the output value for a .charmap can be longer than one byte.\n\
                     There are two ways to do this. The first is to specify a list of bytes\n\
@@ -290,8 +272,9 @@ static void show_agbasm_help(FILE * stream)
                     .ascizN directives are not enabled if agbasm charmap is not enabled.\n\
                     \n\
                     Internally, agbasm charmaps are represented as a tree structure. They have\n\
-                    been designed to be memory efficient: A .charmap entry with n characters\n\
-                    would take up 256*n + 8 bytes for the worst case on a 64-bit machine.\n\
+                    been designed to have O(n) performance when parsing a string, while being\n\
+                    as memory efficient as possible: A .charmap entry with n characters would\n\
+                    take up 256*n + 8 bytes for the worst case on a 64-bit machine.\n\
                     The way the above \"BANAN\" example would be parsed would be approximately\n\
                         - Recognize B as a potential match and save it as the\n\
                           last match\n\
@@ -308,8 +291,30 @@ static void show_agbasm_help(FILE * stream)
                           input pointer to the end of `A'\n\
                         - Recognize N as a potential match and save it\n\
                         - Reached end of string, output the value of `N' and stop\n\
-                          parsing\n\
-                    \n"));
+                          parsing\n"));
+    fprintf(stream, _("\n\
+  --agbasm-no-gba-thumb-after-label-disasm-fix\n\
+                    When viewing an .elf file in no$gba's disassembler, if one or more\n\
+                    Thumb opcodes exist in memory, and a label is declared after the\n\
+                    Thumb opcodes, no$gba will interpret subsequent Thumb opcodes after\n\
+                    the label as arm, even though the opcodes afterwards are Thumb. This\n\
+                    is due to (presumably) how no$gba reads the elf file to determine which\n\
+                    opcodes are thumb and which opcodes are arm. What presumably happens is\n\
+                    that no$gba reads the elf's symbol table. Within the symbol table, there\n\
+                    are also special mapping symbols, which indicate whether data at the\n\
+                    address of the mapping symbol is a sequence of ARM opcodes ($a), a\n\
+                    sequence of Thumb opcodes ($t), or a sequence of data items ($d). For\n\
+                    example, if there is a $t symbol with address 0x8000000, this tells no$gba\n\
+                    that address 0x8000000 is the start of a sequence of Thumb opcodes, and\n\
+                    thus no$gba's disassembler will output Thumb opcodes until it encounters\n\
+                    another mapping symbol. However, if a symbol that is not a mapping symbol\n\
+                    is encountered, no$gba will switch to outputting arm opcodes by default.\n\
+                    This becomes an issue as when a function emits a label, any code after\n\
+                    the label will be viewed incorrectly as ARM opcodes in no$gba's\n\
+                    disassembler. This flag aims to workaround this behavior, by having\n\
+                    the assembler clobber the current mapping state, so that it will\n\
+                    output another mapping symbol after the label, and thus no$gba will\n\
+                    output the correct type of data in the disassembler after a label.\n"));
     fprintf(stream, _("\n\
   --agbasm-help     show this message and exit\n"));
     fputc('\n', stream);

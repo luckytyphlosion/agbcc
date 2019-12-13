@@ -1066,9 +1066,9 @@ try_not_colonless_label:
                     restore_line_pointer(nul_char);
                     ++input_line_pointer;
                     
-/*#ifdef tc_check_label
+#ifdef tc_check_label
                     tc_check_label(line_label);
-#endif*/
+#endif
                     if (flag_agbasm & AGBASM_COLON_DEFINED_GLOBAL_LABELS) {
                         if (*input_line_pointer == ':') {
                             input_line_pointer++;
