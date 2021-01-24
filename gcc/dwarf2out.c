@@ -7244,13 +7244,21 @@ gen_compile_unit_die (main_input_filename)
      register char *main_input_filename;
 {
   char producer[250];
+  char wsl_fixed_wd[256];
   char *wd = getpwd ();
 
   comp_unit_die = new_die (DW_TAG_compile_unit, NULL);
   add_name_attribute (comp_unit_die, main_input_filename);
 
-  if (wd != NULL)
-    add_AT_string (comp_unit_die, DW_AT_comp_dir, wd);
+  if (wd != NULL) {
+    if (strlen(wd) < 240 && strncmp("/mnt/", wd, 5) == 0) {
+        strcpy(wsl_fixed_wd, "/cygdrive/");
+        strcpy(wsl_fixed_wd + 10, wd + 5);
+        add_AT_string (comp_unit_die, DW_AT_comp_dir, wsl_fixed_wd);
+    } else {
+        add_AT_string (comp_unit_die, DW_AT_comp_dir, wd);
+    }
+  }
 
   sprintf (producer, "%s %s", language_string, version_string);
 
